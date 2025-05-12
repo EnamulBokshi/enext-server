@@ -1,0 +1,38 @@
+import { Resend } from "resend";
+import { resendAPIKey } from "../config/env.js";
+import { sendEmailType } from "../type.js";
+
+
+if(!resendAPIKey) {
+    console.error("Resend API key is not defined");
+    throw new Error("Resend API key is not defined");
+}
+const resend = new Resend(resendAPIKey);
+
+const sendEmail = async ({name, sendTo, subject, html}:sendEmailType)=>{
+
+    try{
+        const  {data, error} = await resend.emails.send({
+            from: "Enamul <onboarding@resend.dev>",
+            to: sendTo,
+            subject: subject,
+            html: html,
+        })
+    }catch (error: unknown){
+        console.log("Error sending email:", error);
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error sending email:", errorMessage);
+        throw new Error(errorMessage);
+    }
+
+}
+
+
+export default sendEmail;
+
+// (async function (){
+    
+// })
