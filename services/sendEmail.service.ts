@@ -18,6 +18,12 @@ const sendEmail = async ({name, sendTo, subject, html}:sendEmailType)=>{
             subject: subject,
             html: html,
         })
+        if(error){
+            console.error("Error sending email:", error);
+            throw new Error("Error sending email");
+        }
+        console.log("Email sent successfully:", data);
+        return data;
     }catch (error: unknown){
         console.log("Error sending email:", error);
         let errorMessage = "Something went wrong";

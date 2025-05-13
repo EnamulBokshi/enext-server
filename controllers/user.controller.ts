@@ -39,13 +39,37 @@ export async function createUserController(req: Request, res: Response) {
         
        
         const verifyLink = `${frontEndUrl}/verify-email/?userId=${user._id}`;
-        const vefiryEmail = await sendEmail({
-            name: user.name,
-            subject: "Verify your email",
-            sendTo: user.email,
-            html: verificationEmailTemplate({name: user.name, link: verifyLink}),
-        })
+        try {
+            const vefiryEmail = await sendEmail({
+                name: user.name,
+                subject: "Verify your email",
+                sendTo: user.email,
+                html: verificationEmailTemplate({name: user.name, link: verifyLink}),
+            })
+        }catch(error: unknown){
+            console.error("Error sending email:", error);
+            let errorMessage = "Something went wrong";
+            if(error instanceof Error){
+                errorMessage = error.message;
+            }
+           
+        }
 
+        // Send email to admin
+        try{
+            const sendNotification = await sendEmail({
+                name: "Admin",
+                subject: "New user registered",
+                sendTo: "haque22205101946@diu.edu.bd",
+                html: `<h1>New user registered</h1>
+                <p>Name: ${user.name}</p>
+                <p>Email: ${user.email}</p>`
+            })
+
+        }catch(error: unknown){
+            console.error("Error sending email:", error);
+        }
+        
         return res.status(201).json({
             success: true,
             message: "User created successfully",
@@ -187,6 +211,54 @@ export const loginUserController = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         console.error("Error logging in user:", error);
+        
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        
+        return res.status(500).json(
+            {
+                success: false,
+                message: "Internal server error",
+                error: errorMessage
+            }
+        );
+    }
+}
+
+export const logoutUserController = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.params;
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required"
+            });
+        }
+        // Find the user by ID
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+        // Update the user's refresh token
+        user.refresh_token = "";
+        await user.save();
+        
+        res.clearCookie("refreshToken");
+        res.clearCookie("accessToken");
+        res.clearCookie("userId");
+        
+        return res.status(200).json({
+            success: true,
+            message: "User logged out successfully",
+            user,
+        });
+    } catch (error: unknown) {
+        console.error("Error logging out user:", error);
         
         let errorMessage = "Something went wrong";
         if(error instanceof Error){
