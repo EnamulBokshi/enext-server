@@ -6,16 +6,17 @@ import { Response, Request } from "express";
 export const addAddressController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId // middleware
-        const { address_line , city, state, zipcode, country,mobile } = request.body
+        const { address_line1, address_line2, city, state, zipcode, country, mobile } = request.body
 
         const createAddress = new AddressModel({
-            address_line,
+            address_line1,
+            address_line2: address_line2 || "",
             city,
             state,
             country,
-            zip_code : zipcode,
+            zip_code: zipcode,
             mobile,
-            userId : userId 
+            userId
         })
         const saveAddress = await createAddress.save()
 
@@ -75,15 +76,16 @@ export const getAddressController = async(request: Request,response:Response)=>{
 export const updateAddressController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId // middleware auth 
-        const { _id, address_line,city,state,country,pincode, mobile } = request.body 
+        const { _id, address_line1, address_line2, city, state, country, zipcode, mobile } = request.body 
 
         const updateAddress = await AddressModel.updateOne({ _id : _id, userId : userId },{
-            address_line,
+            address_line1,
+            address_line2: address_line2 || "",
             city,
             state,
             country,
             mobile,
-            pincode
+            zip_code: zipcode
         })
 
         return response.json({

@@ -5,10 +5,8 @@ const userRouter = Router();
 import { createUserController, forgotPasswordController, loginUserController, logoutUserController, updateUserController, uploadAvatarController, verifyEmailController, verifyOtpController } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import upload from "../middleware/multer.middleware.js";
+import asyncHandler from "../utils/asyncHandler.js";
 
-const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-};
 
 userRouter.post("/", asyncHandler(createUserController))
 userRouter.post("/verify-email", asyncHandler(verifyEmailController));
