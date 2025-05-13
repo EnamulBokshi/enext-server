@@ -22,6 +22,11 @@ const jwtExpiration = process.env.JWT_EXPIRATION
 const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET
 const jwtRefreshExpiration = process.env.JWT_REFRESH_EXPIRATION
 
+// Cloudinary
+const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME
+const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
+const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET
+const cloudinaryUrl = process.env.CLOUDINARY_URL
 
 // NODE_ENV 
 const nodeEnv = process.env.NODE_ENV || 'development'
@@ -33,5 +38,9 @@ export {
     jwtSecret,
     jwtExpiration,
     nodeEnv,
+    cloudinaryApiKey,
+    cloudinaryApiSecret,
+    cloudinaryCloudName,
+    cloudinaryUrl,
 }
 
