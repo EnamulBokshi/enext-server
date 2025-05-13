@@ -257,7 +257,7 @@ export const updateProductDetails = async(request:Request,response:Response)=>{
         if(error instanceof Error){
             errorMessage = error.message;
         }
-        console.error("Error creating product:", errorMessage);
+        console.error("Error updating product:", errorMessage);
         return response.status(500).json({
             message : errorMessage,
             error : true,
