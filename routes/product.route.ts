@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { authMiddleware } from '../middleware/auth.middleware.js'
-import { createProductController, deleteProductDetails, getProductByCategory, getProductByCategoryAndSubCategory, getProductController, getProductDetails, searchProduct, updateProductDetails } from '../controllers/product.controller.js'
+import { createProductController, deleteProductDetails, getProductByCategory, getProductByCategoryAndSubCategory, getProductBySlug, getProductController, getProductDetails, searchProduct, updateProductDetails } from '../controllers/product.controller.js'
 import { admin } from '../middleware/admin.middleware.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import upload from '../middleware/multer.middleware.js'
@@ -22,7 +22,11 @@ productRouter.post("/", asyncHandler(authMiddleware), asyncHandler(admin), produ
 productRouter.get('/', asyncHandler(getProductController))
 productRouter.get("/category", asyncHandler(getProductByCategory))
 productRouter.get('/category-and-subcategory', asyncHandler(getProductByCategoryAndSubCategory))
-productRouter.get('/:slug', asyncHandler(getProductDetails))
+// productRouter.get('/:slug', asyncHandler(getProductDetails))
+// Get product by slug
+// productRouter.get('/slug/:slug', asyncHandler(getProductBySlug))
+// Alternative route using query parameter for slug
+productRouter.get('/slug', asyncHandler(getProductBySlug))
 
 //update product
 productRouter.put('/update-product-details', asyncHandler(authMiddleware), asyncHandler(admin), productUpload, asyncHandler(updateProductDetails))

@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import os from 'os';
+import { trackUserActivity } from "../services/userActivity.service.js";
 
 // Helper function to save buffer to temp file
 async function saveTempFile(buffer: Buffer, originalname: string): Promise<string> {
@@ -94,9 +95,21 @@ export const createProductController = async(request:Request,response:Response)=
         const parsedCategory = typeof category === 'string' ? JSON.parse(category) : category;
         const parsedSubCategory = typeof subCategory === 'string' ? JSON.parse(subCategory) : subCategory;
 
+        const slug = title.replace(/\s+/g, '-').toLowerCase(); // Generate slug from title
+        // Check if the slug already exists
+        const existingProduct = await ProductModel.findOne({ slug });
+        if (existingProduct) {
+            return response.status(400).json({
+                message: "Product with this slug already exists",
+                error: true,
+                success: false
+            });
+        }
+
         // Create new product with correct field names
         const product = new ProductModel({
             title,
+            slug,
             images: imageUrls, // Use Cloudinary URLs for images
             category: parsedCategory,
             sub_category: parsedSubCategory,
@@ -135,7 +148,7 @@ export const getProductController = async(request:Request,response:Response)=>{
     try {
         // Get parameters from request.query
         let { page, limit, search } = request.query 
- 
+        console.log("getProctuctController", request.query);
         // Set default values and ensure correct types
         const pageNum = page ? Number(page) : 1
         const limitNum = limit ? Number(limit) : 10
@@ -153,6 +166,14 @@ export const getProductController = async(request:Request,response:Response)=>{
             ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limitNum).populate('category sub_category'),
             ProductModel.countDocuments(query)
         ])
+
+        // Track user activity if user is logged in and search query exists
+        if (request.userId && search) {
+            trackUserActivity(request, 'search', {
+                searchQuery: search,
+                page: 'products_search'
+            });
+        }
 
         return response.json({
             message : "Product data",
@@ -266,7 +287,7 @@ export const getProductByCategoryAndSubCategory = async(request:Request,response
 export const getProductDetails = async(request:Request,response:Response)=>{
     try {
         const { productId } = request.query 
-
+        console.log("getProductDetails", request.query);
         if(!productId){
             return response.status(400).json({
                 message : "provide product id",
@@ -277,6 +298,13 @@ export const getProductDetails = async(request:Request,response:Response)=>{
 
         const product = await ProductModel.findOne({ _id : productId })
 
+        // Track product view activity if user is logged in
+        if (request.userId) {
+            trackUserActivity(request, 'product_view', {
+                productId,
+                page: 'product_details'
+            });
+        }
 
         return response.json({
             message : "product details",
@@ -437,23 +465,54 @@ export const deleteProductDetails = async(request:Request,response:Response)=>{
 //search product
 export const searchProduct = async(request:Request,response:Response)=>{
     try {
-        let { search, page, limit } = request.query 
+        let { search, page, limit, categoryId, subCategoryId } = request.query 
 
         const pageNum = page ? Number(page) : 1
         const limitNum = limit ? Number(limit) : 10
 
-        const query: Record<string, any> = search ? {
-            $text : {
-                $search : search as string
-            }
-        } : {}
+        // Build a more flexible query
+        let query: Record<string, any> = {};
+        
+        // If search term is provided, use text search
+        if (search) {
+            query.$text = { $search: search as string };
+        }
+        
+        // Filter by category if provided
+        if (categoryId) {
+            query.category = { $in: Array.isArray(categoryId) ? categoryId : [categoryId] };
+        }
+        
+        // Filter by sub-category if provided
+        if (subCategoryId) {
+            query.sub_category = { $in: Array.isArray(subCategoryId) ? subCategoryId : [subCategoryId] };
+        }
 
         const skip = (pageNum - 1) * limitNum
 
+        // Check if we need to sort by text score when using text search
+        const sortOptions: Record<string, any> = search 
+            ? { score: { $meta: 'textScore' } } 
+            : { createdAt: -1 };
+
         const [data, dataCount] = await Promise.all([
-            ProductModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum).populate('category sub_category'),
+            ProductModel.find(query)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(limitNum)
+                .populate('category sub_category'),
             ProductModel.countDocuments(query)
         ])
+
+        // Track user activity if user is logged in and search query exists
+        if (request.userId && search) {
+            trackUserActivity(request, 'search', {
+                searchQuery: search,
+                categoryId,
+                subCategoryId,
+                page: 'products_search'
+            });
+        }
 
         return response.json({
             message : "Product data",
@@ -472,6 +531,44 @@ export const searchProduct = async(request:Request,response:Response)=>{
             errorMessage = error.message;
         }
         console.error("Error searching products:", errorMessage);
+        return response.status(500).json({
+            message : errorMessage,
+            error : true,
+            success : false
+        })
+    }
+}
+
+// get product by slug
+export const getProductBySlug = async(request:Request,response:Response)=>{
+    try {
+        const { slug } = request.query
+        console.log("getProductBySlug", request.query); 
+
+        if(!slug){
+            return response.status(400).json({
+                message : "provide slug",
+                error : true,
+                success : false
+            })
+        }
+
+        console.log("slug: ", slug);
+        const product = await ProductModel.findOne({ slug : slug })
+
+        return response.json({
+            message : "product details",
+            data : product,
+            error : false,
+            success : true
+        })
+
+    }catch (error:unknown) {
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error creating product:", errorMessage);
         return response.status(500).json({
             message : errorMessage,
             error : true,

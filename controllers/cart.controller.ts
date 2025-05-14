@@ -1,6 +1,7 @@
 import CartProductModel from "../models/cart.model.js";
 import UserModel from "../models/user.model.js";
 import { Response, Request } from "express";
+import { trackUserActivity } from "../services/userActivity.service.js";
 
 export const addToCartItemController = async(request:Request,response:Response)=>{
     try {
@@ -38,6 +39,12 @@ export const addToCartItemController = async(request:Request,response:Response)=
                 shopping_cart : productId
             }
         })
+
+        // Track add to cart activity
+        trackUserActivity(request, 'add_to_cart', {
+            productId,
+            quantity: 1
+        });
 
         return response.json({
             data : save,
@@ -92,12 +99,21 @@ export const getCartItemController = async(request:Request,response:Response)=>{
 export const updateCartItemQtyController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId 
-        const { _id,qty } = request.body
+        const { _id, qty } = request.body
 
         if(!_id ||  !qty){
             return response.status(400).json({
                 message : "provide _id, qty"
             })
+        }
+
+        const cartItem = await CartProductModel.findOne({ _id, userId });
+        if (!cartItem) {
+            return response.status(404).json({
+                message: "Cart item not found",
+                error: true,
+                success: false
+            });
         }
 
         const updateCartitem = await CartProductModel.updateOne({
@@ -106,6 +122,13 @@ export const updateCartItemQtyController = async(request:Request,response:Respon
         },{
             quantity : qty
         })
+
+        // Track cart update activity
+        trackUserActivity(request, 'add_to_cart', {
+            productId: cartItem.productId,
+            quantity: qty,
+            action: 'update_quantity'
+        });
 
         return response.json({
             message : "Update cart",
@@ -141,7 +164,23 @@ export const deleteCartItemQtyController = async(request:Request,response:Respon
         })
       }
 
-      const deleteCartItem  = await CartProductModel.deleteOne({_id : _id, userId : userId })
+      // Get the cart item before deleting it for tracking
+      const cartItem = await CartProductModel.findOne({ _id, userId });
+      if (!cartItem) {
+        return response.status(404).json({
+            message: "Cart item not found",
+            error: true,
+            success: false
+        });
+      }
+
+      const deleteCartItem = await CartProductModel.deleteOne({_id : _id, userId : userId })
+
+      // Track remove from cart activity
+      trackUserActivity(request, 'remove_from_cart', {
+        productId: cartItem.productId,
+        quantity: cartItem.quantity
+      });
 
       return response.json({
         message : "Item remove",
