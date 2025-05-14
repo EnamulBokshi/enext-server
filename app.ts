@@ -16,7 +16,9 @@ import cartRouter from "./routes/cart.route.js";
 import addressRouter from "./routes/address.route.js";
 import orderRouter from "./routes/order.route.js";
 import preferenceRouter from "./routes/userPreference.route.js";
+import productPerformanceRouter from "./routes/productPerformance.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
+import { performanceMiddleware } from "./middleware/performance.middleware.js";
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.use (helmet({
 
 // Apply activity tracking middleware after parsing and before routes
 app.use(activityTrackingMiddleware);
+// Apply performance tracking middleware
+app.use(performanceMiddleware);
 
 app.get('/', (req, res) => {
     res.send('Hello World!')
@@ -51,6 +55,8 @@ app.use("/api/v1/address",addressRouter)
 app.use('/api/v1/orders',orderRouter)
 // User preferences and activity routes
 app.use('/api/v1/preferences', preferenceRouter)
+// Product performance routes
+app.use('/api/v1/product-performance', productPerformanceRouter)
 
 connectDB().then(() =>{
     app.listen(port, () => {
