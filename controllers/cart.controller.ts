@@ -68,7 +68,7 @@ export const addToCartItemController = async(request:Request,response:Response)=
     }
 }
 
-export const getCartItemController = async(request:Request,response:Response)=>{
+export const getCartItemsController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId
 
@@ -154,8 +154,9 @@ export const updateCartItemQtyController = async(request:Request,response:Respon
 export const deleteCartItemQtyController = async(request:Request,response:Response)=>{
     try {
       const userId = request.userId // middleware
-      const { _id } = request.body 
-      
+      const { id } = request.params 
+      const _id = id?.toString()
+      console.log(id)
       if(!_id){
         return response.status(400).json({
             message : "Provide _id",
@@ -174,7 +175,7 @@ export const deleteCartItemQtyController = async(request:Request,response:Respon
         });
       }
 
-      const deleteCartItem = await CartProductModel.deleteOne({_id : _id, userId : userId })
+      const deleteCartItem = await CartProductModel.deleteOne({_id : id, userId : userId })
 
       // Track remove from cart activity
       trackUserActivity(request, 'remove_from_cart', {
@@ -188,6 +189,69 @@ export const deleteCartItemQtyController = async(request:Request,response:Respon
         success : true,
         data : deleteCartItem
       })
+
+    } catch (error:unknown) {
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error creating cart:", errorMessage);
+        return response.status(500).json({
+            message : errorMessage,
+            error : true,
+            success : false
+        })
+    }
+}
+
+// get a single cart item
+export const getCartItemController = async(request:Request,response:Response)=>{
+    try {
+        const userId = request.userId
+        const { id } = request.params
+
+        if(!id){
+            return response.status(400).json({
+                message : "Provide _id",
+                error : true,
+                success : false
+            })
+        }
+
+        const cartItem = await CartProductModel.findOne({ _id : id, userId : userId }).populate('productId')
+
+        return response.json({
+            message : "Cart item",
+            data : cartItem,
+            error : false,
+            success : true
+        })
+
+    } catch (error:unknown) {
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error creating cart:", errorMessage);
+        return response.status(500).json({
+            message : errorMessage,
+            error : true,
+            success : false
+        })
+    }
+}
+export const clearCartItemController = async(request:Request,response:Response)=>{
+    try {
+        const userId = request.userId
+
+        const clearCartItem = await CartProductModel.deleteMany({ userId : userId })
+
+        return response.json({
+            message : "Clear cart",
+            data : clearCartItem,
+            error : false,
+            success : true
+        })
 
     } catch (error:unknown) {
         let errorMessage = "Something went wrong";
