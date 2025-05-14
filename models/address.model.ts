@@ -27,11 +27,11 @@ const addressSchema = new mongoose.Schema({
     },
     country:{
         type: String,
-        required: [true, "Country is required"],
+        required: false,
         default: "Bangladesh",
     },
     mobile: {
-        type: Number,
+        type: String,
         default: null,
     },
     status: {

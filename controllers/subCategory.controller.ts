@@ -3,9 +3,10 @@ import { Response, Request } from "express";
 
 export const AddSubCategoryController = async(request:Request,response:Response)=>{
     try {
-        const { name, image, category, slug,description} = request.body 
+        const { name,category,description} = request.body 
+        const image = request.file?.path || request.body.image // Get image from either file upload or direct body
 
-        if(!name && !image && !category[0] && !slug){
+        if(!name && !image && !category[0] ){
             return response.status(400).json({
                 message : "Provide name, image, category",
                 error : true,
@@ -16,7 +17,7 @@ export const AddSubCategoryController = async(request:Request,response:Response)
             name,
             image,
             category,
-            slug,
+            slug: name.toLowerCase().replace(/ /g, "-"),
             description: description || "",
         }
 

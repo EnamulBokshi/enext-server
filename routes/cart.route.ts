@@ -4,8 +4,8 @@ import { addToCartItemController, deleteCartItemQtyController, getCartItemContro
 import asyncHandler from "../utils/asyncHandler.js";
 const cartRouter = Router()
 
-cartRouter.post('/create',asyncHandler(authMiddleware),asyncHandler(addToCartItemController))
-cartRouter.get("/get",asyncHandler(authMiddleware),asyncHandler(getCartItemController))
+cartRouter.post('/',asyncHandler(authMiddleware),asyncHandler(addToCartItemController))
+cartRouter.get("/",asyncHandler(authMiddleware),asyncHandler(getCartItemController))
 cartRouter.put('/update-qty',asyncHandler(authMiddleware),asyncHandler(updateCartItemQtyController))
 cartRouter.delete('/delete-cart-item',asyncHandler(authMiddleware),asyncHandler(deleteCartItemQtyController))
 

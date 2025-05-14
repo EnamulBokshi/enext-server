@@ -1,4 +1,3 @@
-
 // import Stripe from "../config/stripe.js";
 import CartProductModel from "../models/cart.model.js";
 import OrderModel from "../models/order.model.js";
@@ -8,41 +7,111 @@ import mongoose from "mongoose";
 import { Response, Request } from "express";
 import { OrderPayload } from '../type.js';
 
- export async function CashOnDeliveryOrderController(request:Request,response:Response){
+export async function CashOnDeliveryOrderController(request:Request,response:Response){
     try {
         const userId = request.userId // auth middleware 
-        const { list_items, totalAmt, addressId,subTotalAmt } = request.body 
+        const { addressId } = request.body 
         
-        const payload: OrderPayload[] = list_items.map((el: { productId: { _id: string; name: string; image: string } }) => {
-            return {
+        // 1. Verify items in cart
+        const cartItems = await CartProductModel.find({
+                    userId : userId
+                }).populate('productId')
+        if(!cartItems.length){
+            return response.status(400).json({
+                message : "No item in the cart",
+                error : true,
+                success : false
+            })
+        }
+
+        // 2. Check if user has addresses
+        const user = await UserModel.findById(userId).populate('address_details')
+        if(!user || !user.address_details || user.address_details.length === 0){
+            return response.status(400).json({
+                message : "No address found",
+                error : true,
+                success : false
+            })
+        }
+
+        // 3. Validate selected address exists
+        if(!addressId) {
+            return response.status(400).json({
+                message : "Delivery address is required",
+                error : true,
+                success : false
+            })
+        }
+        
+        // Check if addressId exists in user's addresses
+        const selectedAddress = user.address_details.find((address) => address._id.toString() === addressId)
+        if(!selectedAddress) {
+            return response.status(400).json({
+                message : "Invalid delivery address",
+                error : true,
+                success : false
+            })
+        }
+
+        // 4. Calculate totals
+        // Use type assertion for populated documents
+        type CartItemWithProduct = {
+            productId: {
+                _id: string;
+                title: string;
+                price: number;
+                discount: number;
+                images: string[];
+            };
+            quantity: number;
+        };
+
+        const subTotalAmount = cartItems.reduce((acc, item) => {
+            const typedItem = item.toObject() as unknown as CartItemWithProduct;
+            return acc + (typedItem.productId.price * typedItem.quantity);
+        }, 0);
+        
+        const totalAmount = cartItems.reduce((acc, item) => {
+            const typedItem = item.toObject() as unknown as CartItemWithProduct;
+            const discountAmount = Math.ceil((typedItem.productId.price * typedItem.productId.discount) / 100);
+            const actualPrice = typedItem.productId.price - discountAmount;
+            return acc + (actualPrice * typedItem.quantity);
+        }, 0);
+
+        // 5. Create a new order
+        const typedCartItems = cartItems.map(item => item.toObject()) as unknown as CartItemWithProduct[];
+        
+        const order = new OrderModel({
             userId: userId,
             orderId: `ORD-${new mongoose.Types.ObjectId()}`,
-            productId: el.productId._id,
+            products: typedCartItems.map(item => item.productId._id),
             product_details: {
-                name: el.productId.name,
-                image: el.productId.image
+                name: typedCartItems[0].productId.title,
+                image: typedCartItems.map(item => item.productId.images[0])
             },
             paymentId: "",
-            payment_status: "CASH ON DELIVERY",
-            delivery_address: addressId,
-            subTotalAmt: subTotalAmt,
-            totalAmt: totalAmt,
-            };
+            paymentStatus: "pending",
+            shippingAddress: [addressId],
+            subTotalAmount,
+            totalAmount,
+            orderStatus: "pending"
         });
-
-        const generatedOrder = await OrderModel.insertMany(payload)
-
-        ///remove from the cart
-        const removeCartItems = await CartProductModel.deleteMany({ userId : userId })
-        const updateInUser = await UserModel.updateOne({ _id : userId }, { shopping_cart : []})
-
-        return response.json({
-            message : "Order successfully",
-            error : false,
-            success : true,
-            data : generatedOrder
+        
+        const savedOrder = await order.save()
+        
+        // 6. Clear the cart
+        await CartProductModel.deleteMany({ userId: userId })
+        await UserModel.findByIdAndUpdate(userId, {
+            shopping_cart: [],
+            $push: { orderHistory: savedOrder._id }
         })
 
+        return response.json({
+            message : "Order placed successfully",
+            data : savedOrder,
+            error : false,
+            success : true
+        })
     } catch(error:unknown) {
         let errorMessage = "Something went wrong";
         if(error instanceof Error){
@@ -199,7 +268,7 @@ export async function getOrderDetailsController(request:Request,response:Respons
     try {
         const userId = request.userId // order id
 
-        const orderlist = await OrderModel.find({ userId : userId }).sort({ createdAt : -1 }).populate('delivery_address')
+        const orderlist = await OrderModel.find({ userId : userId }).sort({ createdAt : -1 }).populate('shippingAddress')
 
         return response.json({
             message : "order list",

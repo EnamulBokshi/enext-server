@@ -3,11 +3,12 @@ import { AddCategoryController, deleteCategoryController, getCategoryController,
 import { authMiddleware } from '../middleware/auth.middleware.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import { admin } from '../middleware/admin.middleware.js'
+import upload from '../middleware/multer.middleware.js'
 const categoryRouter = Router()
 
-categoryRouter.post("/add-category",asyncHandler(authMiddleware),asyncHandler(admin), asyncHandler(AddCategoryController))
-categoryRouter.get('/get',asyncHandler(getCategoryController))
-categoryRouter.put('/update',asyncHandler(authMiddleware),asyncHandler(admin), asyncHandler(updateCategoryController))
-categoryRouter.delete("/delete",asyncHandler(authMiddleware),asyncHandler(admin), asyncHandler(deleteCategoryController))
+categoryRouter.post("/", asyncHandler(authMiddleware), upload.single('image'), asyncHandler(AddCategoryController))
+categoryRouter.get('/', asyncHandler(getCategoryController))
+categoryRouter.put('/', asyncHandler(authMiddleware), asyncHandler(admin), upload.single('image'), asyncHandler(updateCategoryController))
+categoryRouter.delete("/", asyncHandler(authMiddleware), asyncHandler(admin), asyncHandler(deleteCategoryController))
 
 export default categoryRouter

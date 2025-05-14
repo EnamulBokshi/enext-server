@@ -6,9 +6,10 @@ import { Response, Request } from "express";
 
 export const AddCategoryController = async(request:Request,response:Response)=>{
     try {
-        const { name , image } = request.body 
+        const { name } = request.body
+        const image = request.file?.path || request.body.image // Get image from either file upload or direct body
 
-        if(!name || !image){
+        if(!name){
             return response.status(400).json({
                 message : "Enter required fields",
                 error : true,
@@ -18,7 +19,7 @@ export const AddCategoryController = async(request:Request,response:Response)=>{
 
         const addCategory = new CategoryModel({
             name,
-            image
+            slug : name.toLowerCase().replace(/ /g, "-"),
         })
 
         const saveCategory = await addCategory.save()
@@ -78,7 +79,8 @@ export const getCategoryController = async(request:Request,response:Response)=>{
 
 export const updateCategoryController = async(request:Request,response:Response)=>{
     try {
-        const { _id ,name, image } = request.body 
+        const { _id, name } = request.body 
+        const image = request.file?.path || request.body.image // Get image from either file upload or direct body
 
         const update = await CategoryModel.updateOne({
             _id : _id

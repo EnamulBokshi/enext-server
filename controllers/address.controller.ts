@@ -8,6 +8,43 @@ export const addAddressController = async(request:Request,response:Response)=>{
         const userId = request.userId // middleware
         const { address_line1, address_line2, city, state, zipcode, country, mobile } = request.body
 
+        // Validation
+        if(!address_line1){
+            return response.status(400).json({
+                message : "Address line 1 is required",
+                error : true,
+                success : false
+            })
+        }
+        if(!city){
+            return response.status(400).json({      
+                message : "City is required",
+                error : true,
+                success : false
+            })
+        }
+        if(!state){
+            return response.status(400).json({
+                message : "State is required",
+                error : true,
+                success : false
+            })
+        }
+        if(!zipcode){
+            return response.status(400).json({
+                message : "Zipcode is required",
+                error : true,
+                success : false
+            })
+        }
+        if(!mobile){
+            return response.status(400).json({
+                message : "Mobile number is required",
+                error : true,
+                success : false
+            })     
+        }
+
         const createAddress = new AddressModel({
             address_line1,
             address_line2: address_line2 || "",

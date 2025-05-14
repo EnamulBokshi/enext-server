@@ -1,12 +1,46 @@
 import ProductModel from "../models/product.model.js";
 import {Response, Request} from "express"
+import uploadImageCloudinary from "../services/uploadImageCloudinary.js";
+import fs from 'fs';
+import path from 'path';
+import { promisify } from 'util';
+import os from 'os';
 
+// Helper function to save buffer to temp file
+async function saveTempFile(buffer: Buffer, originalname: string): Promise<string> {
+  const tempDir = os.tmpdir();
+  const filename = `${Date.now()}-${originalname}`;
+  const filepath = path.join(tempDir, filename);
+  
+  const writeFile = promisify(fs.writeFile);
+  await writeFile(filepath, buffer);
+  
+  return filepath;
+}
 
 export const createProductController = async(request:Request,response:Response)=>{
     try {
+        // With upload.fields(), files are organized by field name
+        const fileFields = request.files as { [fieldname: string]: Express.Multer.File[] };
+        
+        // Collect all files from various possible field names
+        let allFiles: Express.Multer.File[] = [];
+        if (fileFields) {
+            Object.keys(fileFields).forEach(fieldName => {
+                allFiles = [...allFiles, ...fileFields[fieldName]];
+            });
+        }
+        
+        if (!allFiles || allFiles.length === 0) {
+            return response.status(400).json({
+                message: "Product images are required",
+                error: true,
+                success: false
+            });
+        }
+        
         const { 
-            name ,
-            image ,
+            title,
             category,
             subCategory,
             unit,
@@ -17,7 +51,7 @@ export const createProductController = async(request:Request,response:Response)=
             more_details,
         } = request.body 
 
-        if(!name || !image[0] || !category[0] || !subCategory[0] || !unit || !price || !description ){
+        if(!title || !category || !subCategory || !unit || !price || !description ){
             return response.status(400).json({
                 message : "Enter required fields",
                 error : true,
@@ -25,18 +59,55 @@ export const createProductController = async(request:Request,response:Response)=
             })
         }
 
+        // Upload each image to Cloudinary
+        const imagePromises = allFiles.map(async (file) => {
+            // Save buffer to temporary file and pass file path to Cloudinary
+            const tempFilePath = await saveTempFile(file.buffer, file.originalname);
+            
+            try {
+                // Use the native File interface of the uploadImageCloudinary service
+                const uploadResult = await uploadImageCloudinary({
+                    path: tempFilePath,
+                    mimetype: file.mimetype,
+                    originalname: file.originalname
+                });
+                
+                // Clean up temp file after upload
+                fs.unlink(tempFilePath, (err) => {
+                    if (err) console.error("Error deleting temp file:", err);
+                });
+                
+                return uploadResult.secure_url;
+            } catch (error) {
+                // Clean up temp file in case of error
+                fs.unlink(tempFilePath, (err) => {
+                    if (err) console.error("Error deleting temp file:", err);
+                });
+                throw error;
+            }
+        });
+        
+        // Wait for all image uploads to complete
+        const imageUrls = await Promise.all(imagePromises);
+
+        // Parse JSON strings if they're sent as form data strings
+        const parsedCategory = typeof category === 'string' ? JSON.parse(category) : category;
+        const parsedSubCategory = typeof subCategory === 'string' ? JSON.parse(subCategory) : subCategory;
+
+        // Create new product with correct field names
         const product = new ProductModel({
-            name ,
-            image ,
-            category,
-            subCategory,
+            title,
+            images: imageUrls, // Use Cloudinary URLs for images
+            category: parsedCategory,
+            sub_category: parsedSubCategory,
             unit,
-            stock,
+            currentStock: stock,
             price,
             discount,
             description,
             more_details,
         })
+        
         const saveProduct = await product.save()
 
         return response.json({
@@ -62,27 +133,24 @@ export const createProductController = async(request:Request,response:Response)=
 
 export const getProductController = async(request:Request,response:Response)=>{
     try {
+        // Get parameters from request.query
+        let { page, limit, search } = request.query 
+ 
+        // Set default values and ensure correct types
+        const pageNum = page ? Number(page) : 1
+        const limitNum = limit ? Number(limit) : 10
         
-        let { page, limit, search } = request.body 
-
-        if(!page){
-            page = 1
-        }
-
-        if(!limit){
-            limit = 10
-        }
-
-        const query = search ? {
+        // Define query with proper typing
+        const query: Record<string, any> = search ? {
             $text : {
-                $search : search
+                $search : search as string
             }
         } : {}
 
-        const skip = (page - 1) * limit
+        const skip = (pageNum - 1) * limitNum
 
-        const [data,totalCount] = await Promise.all([
-            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit).populate('category subCategory'),
+        const [data, totalCount] = await Promise.all([
+            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limitNum).populate('category sub_category'),
             ProductModel.countDocuments(query)
         ])
 
@@ -91,7 +159,7 @@ export const getProductController = async(request:Request,response:Response)=>{
             error : false,
             success : true,
             totalCount : totalCount,
-            totalNoPage : Math.ceil( totalCount / limit),
+            totalNoPage : Math.ceil(totalCount / limitNum),
             data : data
         })
     } catch (error:unknown) {
@@ -99,7 +167,7 @@ export const getProductController = async(request:Request,response:Response)=>{
         if(error instanceof Error){
             errorMessage = error.message;
         }
-        console.error("Error creating product:", errorMessage);
+        console.error("Error fetching products:", errorMessage);
         return response.status(500).json({
             message : errorMessage,
             error : true,
@@ -110,7 +178,7 @@ export const getProductController = async(request:Request,response:Response)=>{
 
 export const getProductByCategory = async(request:Request,response:Response)=>{
     try {
-        const { id } = request.body 
+        const { id } = request.query 
 
         if(!id){
             return response.status(400).json({
@@ -144,9 +212,9 @@ export const getProductByCategory = async(request:Request,response:Response)=>{
     }
 }
 
-export const getProductByCategoryAndSubCategory  = async(request:Request,response:Response)=>{
+export const getProductByCategoryAndSubCategory = async(request:Request,response:Response)=>{
     try {
-        let { categoryId,subCategoryId,page,limit } = request.body
+        let { categoryId, subCategoryId, page, limit } = request.query
 
         if(!categoryId || !subCategoryId){
             return response.status(400).json({
@@ -156,23 +224,18 @@ export const getProductByCategoryAndSubCategory  = async(request:Request,respons
             })
         }
 
-        if(!page){
-            page = 1
-        }
-
-        if(!limit){
-            limit = 10
-        }
+        const pageNum = page ? Number(page) : 1
+        const limitNum = limit ? Number(limit) : 10
 
         const query = {
-            category : { $in :categoryId  },
+            category : { $in : categoryId },
             subCategory : { $in : subCategoryId }
         }
 
-        const skip = (page - 1) * limit
+        const skip = (pageNum - 1) * limitNum
 
-        const [data,dataCount] = await Promise.all([
-            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limit),
+        const [data, dataCount] = await Promise.all([
+            ProductModel.find(query).sort({createdAt : -1 }).skip(skip).limit(limitNum),
             ProductModel.countDocuments(query)
         ])
 
@@ -180,8 +243,8 @@ export const getProductByCategoryAndSubCategory  = async(request:Request,respons
             message : "Product list",
             data : data,
             totalCount : dataCount,
-            page : page,
-            limit : limit,
+            page : pageNum,
+            limit : limitNum,
             success : true,
             error : false
         })
@@ -202,7 +265,15 @@ export const getProductByCategoryAndSubCategory  = async(request:Request,respons
 
 export const getProductDetails = async(request:Request,response:Response)=>{
     try {
-        const { productId } = request.body 
+        const { productId } = request.query 
+
+        if(!productId){
+            return response.status(400).json({
+                message : "provide product id",
+                error : true,
+                success : false
+            })
+        }
 
         const product = await ProductModel.findOne({ _id : productId })
 
@@ -240,10 +311,72 @@ export const updateProductDetails = async(request:Request,response:Response)=>{
                 success : false
             })
         }
+        
+        // With upload.fields(), files are organized by field name
+        const fileFields = request.files as { [fieldname: string]: Express.Multer.File[] };
+        let updateData = {...request.body};
+        let allFiles: Express.Multer.File[] = [];
+        
+        // Collect all files from various possible field names
+        if (fileFields) {
+            Object.keys(fileFields).forEach(fieldName => {
+                allFiles = [...allFiles, ...fileFields[fieldName]];
+            });
+        }
+        
+        // If new images were uploaded, process them
+        if(allFiles && allFiles.length > 0) {
+            // Upload each image to Cloudinary
+            const imagePromises = allFiles.map(async (file) => {
+                // Save buffer to temporary file and pass file path to Cloudinary
+                const tempFilePath = await saveTempFile(file.buffer, file.originalname);
+                
+                try {
+                    // Use the native File interface of the uploadImageCloudinary service
+                    const uploadResult = await uploadImageCloudinary({
+                        path: tempFilePath,
+                        mimetype: file.mimetype,
+                        originalname: file.originalname
+                    });
+                    
+                    // Clean up temp file after upload
+                    fs.unlink(tempFilePath, (err) => {
+                        if (err) console.error("Error deleting temp file:", err);
+                    });
+                    
+                    return uploadResult.secure_url;
+                } catch (error) {
+                    // Clean up temp file in case of error
+                    fs.unlink(tempFilePath, (err) => {
+                        if (err) console.error("Error deleting temp file:", err);
+                    });
+                    throw error;
+                }
+            });
+            
+            // Wait for all image uploads to complete
+            const imageUrls = await Promise.all(imagePromises);
+            
+            // Update with the correct field name
+            updateData.images = imageUrls;
+            
+            // Remove old image field if it exists (to avoid conflicts)
+            if (updateData.image) {
+                delete updateData.image;
+            }
+        }
+        
+        // Parse JSON strings if they're sent as form data strings
+        if(typeof updateData.category === 'string') {
+            updateData.category = JSON.parse(updateData.category);
+        }
+        
+        if(typeof updateData.subCategory === 'string') {
+            updateData.sub_category = JSON.parse(updateData.subCategory);
+            delete updateData.subCategory;
+        }
 
-        const updateProduct = await ProductModel.updateOne({ _id : _id },{
-            ...request.body
-        })
+        const updateProduct = await ProductModel.updateOne({ _id }, updateData);
 
         return response.json({
             message : "updated successfully",
@@ -304,25 +437,21 @@ export const deleteProductDetails = async(request:Request,response:Response)=>{
 //search product
 export const searchProduct = async(request:Request,response:Response)=>{
     try {
-        let { search, page , limit } = request.body 
+        let { search, page, limit } = request.query 
 
-        if(!page){
-            page = 1
-        }
-        if(!limit){
-            limit  = 10
-        }
+        const pageNum = page ? Number(page) : 1
+        const limitNum = limit ? Number(limit) : 10
 
-        const query = search ? {
+        const query: Record<string, any> = search ? {
             $text : {
-                $search : search
+                $search : search as string
             }
         } : {}
 
-        const skip = ( page - 1) * limit
+        const skip = (pageNum - 1) * limitNum
 
-        const [data,dataCount] = await Promise.all([
-            ProductModel.find(query).sort({ createdAt  : -1 }).skip(skip).limit(limit).populate('category subCategory'),
+        const [data, dataCount] = await Promise.all([
+            ProductModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum).populate('category sub_category'),
             ProductModel.countDocuments(query)
         ])
 
@@ -331,19 +460,18 @@ export const searchProduct = async(request:Request,response:Response)=>{
             error : false,
             success : true,
             data : data,
-            totalCount :dataCount,
-            totalPage : Math.ceil(dataCount/limit),
-            page : page,
-            limit : limit 
+            totalCount: dataCount,
+            totalPage : Math.ceil(dataCount/limitNum),
+            page : pageNum,
+            limit : limitNum 
         })
-
 
     } catch (error:unknown) {
         let errorMessage = "Something went wrong";
         if(error instanceof Error){
             errorMessage = error.message;
         }
-        console.error("Error creating product:", errorMessage);
+        console.error("Error searching products:", errorMessage);
         return response.status(500).json({
             message : errorMessage,
             error : true,

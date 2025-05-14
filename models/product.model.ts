@@ -19,7 +19,7 @@ const productSchema = new mongoose.Schema({
     category: [
         {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "category",
+            ref: "Category", // Updated to match the registered model name
         }
     ],
     sub_category: [
@@ -35,7 +35,7 @@ const productSchema = new mongoose.Schema({
     },
     currentStock :{
         type: Number,
-        default: 0,
+        default: 1,
     },
     price:{
         type: Number,
