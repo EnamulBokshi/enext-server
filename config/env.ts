@@ -30,6 +30,10 @@ const cloudinaryUrl = process.env.CLOUDINARY_URL
 
 // NODE_ENV 
 const nodeEnv = process.env.NODE_ENV || 'development'
+
+
+// Gemini API
+const geminiApiKey = process.env.GEMINI_API_KEY
 export {
     port,
     dbURL,
@@ -42,5 +46,6 @@ export {
     cloudinaryApiSecret,
     cloudinaryCloudName,
     cloudinaryUrl,
+    geminiApiKey
 }
 

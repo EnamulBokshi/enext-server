@@ -19,6 +19,7 @@ import preferenceRouter from "./routes/userPreference.route.js";
 import productPerformanceRouter from "./routes/productPerformance.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
 import { performanceMiddleware } from "./middleware/performance.middleware.js";
+import assistRouter from "./routes/assist.route.js";
 
 const app = express();
 
@@ -58,6 +59,9 @@ app.use('/api/v1/preferences', preferenceRouter)
 // Product performance routes
 app.use('/api/v1/product-performance', productPerformanceRouter)
 
+
+// AI routes
+app.use('/api/v1/assist',assistRouter )
 connectDB().then(() =>{
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
