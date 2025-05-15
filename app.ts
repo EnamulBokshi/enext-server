@@ -19,6 +19,7 @@ import preferenceRouter from "./routes/userPreference.route.js";
 import productPerformanceRouter from "./routes/productPerformance.route.js";
 import productAnalysisRouter from "./routes/productAnalysis.route.js";
 import inventoryRouter from "./routes/inventory.route.js";
+import inventoryAssistRouter from "./routes/inventoryAssist.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
 import { performanceMiddleware } from "./middleware/performance.middleware.js";
 import { inventoryAlertMiddleware } from "./middleware/inventory.middleware.js";
@@ -68,6 +69,8 @@ app.use('/api/v1/product-performance', productPerformanceRouter)
 app.use('/api/v1/product-analysis', productAnalysisRouter)
 // Inventory management routes
 app.use('/api/v1/inventory', inventoryRouter)
+// Inventory AI assistant routes
+app.use('/api/v1/inventory-assist', inventoryAssistRouter)
 
 // AI routes
 app.use('/api/v1/assist',assistRouter )
