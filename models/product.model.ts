@@ -6,6 +6,13 @@ const productSchema = new mongoose.Schema({
         required: [true, "Product name is required"],
         default: null,
     },
+    slug:{
+        type: String,
+        required: [true, "Product slug is required"],
+        default: null,
+        unique: true,
+        lowercase: true,
+    },
     images: {
         type: Array,
         required: [true, "Product images are required"],
@@ -54,6 +61,23 @@ const productSchema = new mongoose.Schema({
 },{
     timestamps: true,
 });
+
+// Create text index on title, description, and slug fields
+productSchema.index(
+    { 
+        title: 'text', 
+        description: 'text',
+        slug: 'text' 
+    }, 
+    {
+        weights: {
+            title: 10,
+            slug: 5,
+            description: 3
+        },
+        name: "ProductTextIndex"
+    }
+);
 
 const ProductModel = mongoose.model("Product", productSchema);
 export default ProductModel;

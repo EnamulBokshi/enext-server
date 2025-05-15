@@ -1,6 +1,7 @@
 import CartProductModel from "../models/cart.model.js";
 import UserModel from "../models/user.model.js";
 import { Response, Request } from "express";
+import { trackUserActivity } from "../services/userActivity.service.js";
 
 export const addToCartItemController = async(request:Request,response:Response)=>{
     try {
@@ -39,6 +40,12 @@ export const addToCartItemController = async(request:Request,response:Response)=
             }
         })
 
+        // Track add to cart activity
+        trackUserActivity(request, 'add_to_cart', {
+            productId,
+            quantity: 1
+        });
+
         return response.json({
             data : save,
             message : "Item add successfully",
@@ -61,7 +68,7 @@ export const addToCartItemController = async(request:Request,response:Response)=
     }
 }
 
-export const getCartItemController = async(request:Request,response:Response)=>{
+export const getCartItemsController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId
 
@@ -92,12 +99,21 @@ export const getCartItemController = async(request:Request,response:Response)=>{
 export const updateCartItemQtyController = async(request:Request,response:Response)=>{
     try {
         const userId = request.userId 
-        const { _id,qty } = request.body
+        const { _id, qty } = request.body
 
         if(!_id ||  !qty){
             return response.status(400).json({
                 message : "provide _id, qty"
             })
+        }
+
+        const cartItem = await CartProductModel.findOne({ _id, userId });
+        if (!cartItem) {
+            return response.status(404).json({
+                message: "Cart item not found",
+                error: true,
+                success: false
+            });
         }
 
         const updateCartitem = await CartProductModel.updateOne({
@@ -106,6 +122,13 @@ export const updateCartItemQtyController = async(request:Request,response:Respon
         },{
             quantity : qty
         })
+
+        // Track cart update activity
+        trackUserActivity(request, 'add_to_cart', {
+            productId: cartItem.productId,
+            quantity: qty,
+            action: 'update_quantity'
+        });
 
         return response.json({
             message : "Update cart",
@@ -131,8 +154,9 @@ export const updateCartItemQtyController = async(request:Request,response:Respon
 export const deleteCartItemQtyController = async(request:Request,response:Response)=>{
     try {
       const userId = request.userId // middleware
-      const { _id } = request.body 
-      
+      const { id } = request.params 
+      const _id = id?.toString()
+      console.log(id)
       if(!_id){
         return response.status(400).json({
             message : "Provide _id",
@@ -141,7 +165,23 @@ export const deleteCartItemQtyController = async(request:Request,response:Respon
         })
       }
 
-      const deleteCartItem  = await CartProductModel.deleteOne({_id : _id, userId : userId })
+      // Get the cart item before deleting it for tracking
+      const cartItem = await CartProductModel.findOne({ _id, userId });
+      if (!cartItem) {
+        return response.status(404).json({
+            message: "Cart item not found",
+            error: true,
+            success: false
+        });
+      }
+
+      const deleteCartItem = await CartProductModel.deleteOne({_id : id, userId : userId })
+
+      // Track remove from cart activity
+      trackUserActivity(request, 'remove_from_cart', {
+        productId: cartItem.productId,
+        quantity: cartItem.quantity
+      });
 
       return response.json({
         message : "Item remove",
@@ -149,6 +189,69 @@ export const deleteCartItemQtyController = async(request:Request,response:Respon
         success : true,
         data : deleteCartItem
       })
+
+    } catch (error:unknown) {
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error creating cart:", errorMessage);
+        return response.status(500).json({
+            message : errorMessage,
+            error : true,
+            success : false
+        })
+    }
+}
+
+// get a single cart item
+export const getCartItemController = async(request:Request,response:Response)=>{
+    try {
+        const userId = request.userId
+        const { id } = request.params
+
+        if(!id){
+            return response.status(400).json({
+                message : "Provide _id",
+                error : true,
+                success : false
+            })
+        }
+
+        const cartItem = await CartProductModel.findOne({ _id : id, userId : userId }).populate('productId')
+
+        return response.json({
+            message : "Cart item",
+            data : cartItem,
+            error : false,
+            success : true
+        })
+
+    } catch (error:unknown) {
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        console.error("Error creating cart:", errorMessage);
+        return response.status(500).json({
+            message : errorMessage,
+            error : true,
+            success : false
+        })
+    }
+}
+export const clearCartItemController = async(request:Request,response:Response)=>{
+    try {
+        const userId = request.userId
+
+        const clearCartItem = await CartProductModel.deleteMany({ userId : userId })
+
+        return response.json({
+            message : "Clear cart",
+            data : clearCartItem,
+            error : false,
+            success : true
+        })
 
     } catch (error:unknown) {
         let errorMessage = "Something went wrong";
