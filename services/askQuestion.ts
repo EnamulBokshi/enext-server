@@ -13,13 +13,13 @@ export const askQuestion = async (question: string) => {
         // Format products into a string for context
         const productsContext = products.map(product => {
             return `
-Product: ${product.title}
-Description: ${product.description}
-Price: $${product.price}${product.discount > 0 ? ` (${product.discount}% off)` : ''}
-Category: ${Array.isArray(product.category) ? product.category.map((cat: any) => cat.name).join(', ') : ''}
-SubCategory: ${Array.isArray(product.sub_category) ? product.sub_category.map((subcat: any) => subcat.name).join(', ') : ''}
-Unit: ${product.unit || 'N/A'}
-      `;
+                Product: ${product.title}
+                Description: ${product.description}
+                Price: $${product.price}${product.discount > 0 ? ` (${product.discount}% off)` : ''}
+                Category: ${Array.isArray(product.category) ? product.category.map((cat: any) => cat.name).join(', ') : ''}
+                SubCategory: ${Array.isArray(product.sub_category) ? product.sub_category.map((subcat: any) => subcat.name).join(', ') : ''}
+                Unit: ${product.unit || 'N/A'}
+                    `;
         }).join('\n---\n');
 
         // Create instruction prompt to guide the AI's responses

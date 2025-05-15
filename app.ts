@@ -20,6 +20,7 @@ import productPerformanceRouter from "./routes/productPerformance.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
 import { performanceMiddleware } from "./middleware/performance.middleware.js";
 import assistRouter from "./routes/assist.route.js";
+import seedDatabase from "./scripts/seedCategoriesAndSubcategories.js";
 
 const app = express();
 
