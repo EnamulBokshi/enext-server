@@ -9,11 +9,12 @@ if(!resendAPIKey) {
 }
 const resend = new Resend(resendAPIKey);
 
-const sendEmail = async ({name, sendTo, subject, html}:sendEmailType)=>{
+const sendEmail = async ({name, sendTo, subject, html, from}:sendEmailType)=>{
 
     try{
+        const defaultFrom = "support@email.super-trader.xyz";
         const  {data, error} = await resend.emails.send({
-            from: "Enamul <onboarding@resend.dev>",
+            from: from || `${name || 'Support'} <${defaultFrom}>`,
             to: sendTo,
             subject: subject,
             html: html,

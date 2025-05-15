@@ -31,7 +31,8 @@ const cloudinaryUrl = process.env.CLOUDINARY_URL
 // NODE_ENV 
 const nodeEnv = process.env.NODE_ENV || 'development'
 
-
+// Verify email url
+const verifyEmailUrl = process.env.EMAIL_VERIFY_URL
 // Gemini API
 const geminiApiKey = process.env.GEMINI_API_KEY
 export {
@@ -46,6 +47,7 @@ export {
     cloudinaryApiSecret,
     cloudinaryCloudName,
     cloudinaryUrl,
-    geminiApiKey
+    geminiApiKey,
+    verifyEmailUrl
 }
 

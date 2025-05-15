@@ -3,7 +3,7 @@ import UserModel from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import sendEmail from "../services/sendEmail.service.js";
 import verificationEmailTemplate from "../utils/verifyEmailTemplate.js";
-import { frontEndUrl, nodeEnv } from "../config/env.js";
+import { frontEndUrl, nodeEnv, verifyEmailUrl } from "../config/env.js";
 import generateAccessToken from "../utils/generateAccessToken.js";
 import generateRefreshToken from "../utils/generateRefreshToken.js";
 import uploadImageCloudinary from "../services/uploadImageCloudinary.js";
@@ -40,12 +40,13 @@ export async function createUserController(req: Request, res: Response) {
         const user = await newUser.save();
         
        
-        const verifyLink = `${frontEndUrl}/verify-email/?userId=${user._id}`;
+        const verifyLink = `${verifyEmailUrl}/users/verify-email/?userId=${user._id}`;
         try {
             const vefiryEmail = await sendEmail({
                 name: user.name,
                 subject: "Verify your email",
                 sendTo: user.email,
+                from: `Verification <no-reply@email.super-trader.xyz>`,
                 html: verificationEmailTemplate({name: user.name, link: verifyLink}),
             })
         }catch(error: unknown){
@@ -63,6 +64,7 @@ export async function createUserController(req: Request, res: Response) {
                 name: "Admin",
                 subject: "New user registered",
                 sendTo: "haque22205101946@diu.edu.bd",
+                from: `Admin Notifications <admin@email.super-trader.xyz>`,
                 html: `<h1>New user registered</h1>
                 <p>Name: ${user.name}</p>
                 <p>Email: ${user.email}</p>`
@@ -97,7 +99,8 @@ export async function createUserController(req: Request, res: Response) {
 
 export const verifyEmailController = async (req: Request, res: Response) => {
     try {
-        const { userId } = req.params;
+        const { userId } = req.query;
+        console.log("User ID:", userId);
         if (!userId) {
             return res.status(400).json({
                 success: false,
@@ -473,6 +476,7 @@ export const forgotPasswordController = async (req: Request, res: Response) => {
                 name: user?.name,
                 subject: "Reset your password",
                 sendTo: user?.email,
+                from: `Password Reset <reset@email.super-trader.xyz>`,
                 html: `<h1>Reset your password</h1>
                 <p style="padding: 10x 16px; font-weight: bold; background: green; color:white; text-align:center border-radious: 20px">Your OTP is: ${otp}</p>
                 <p>Please use this OTP to reset your password. It will expire in 60 minutes.</p>
@@ -558,6 +562,82 @@ export const verifyOtpController = async (req: Request, res: Response) => {
         });
     } catch (error: unknown) {
         console.error("Error verifying OTP:", error);
+        
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        
+        return res.status(500).json(
+            {
+                success: false,
+                message: "Internal server error",
+                error: errorMessage
+            }
+        );
+    }
+}
+
+// get all users
+export const getAllUsersController = async (req: Request, res: Response) => {
+    try {
+        const users = await UserModel.find({}).select("-password -__v").sort({ createdAt: -1 });
+        if (!users) {
+            return res.status(404).json({
+                success: false,
+                message: "No users found"
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: "Users fetched successfully",  
+            users,
+        });
+    } catch (error: unknown) {
+        console.error("Error fetching users:", error);
+        let errorMessage = "Something went wrong";
+        if(error instanceof Error){
+            errorMessage = error.message;
+        }
+        return res.status(500).json(
+            {
+                success: false,
+                message: "Internal server error",
+                error: errorMessage
+            }
+        );
+    }
+}
+
+// get user details
+export const getUserDetailsController = async (req: Request, res: Response) => {
+    try {
+        // Get user ID either from query parameter or from auth middleware
+        const userId = req.query.userId || req.userId;
+        
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required"
+            });
+        }
+        
+        // Find the user by ID
+        const user = await UserModel.findById(userId).select("-password -refresh_token");
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+        
+        return res.status(200).json({
+            success: true,
+            message: "User details fetched successfully",
+            user,
+        });
+    } catch (error: unknown) {
+        console.error("Error fetching user details:", error);
         
         let errorMessage = "Something went wrong";
         if(error instanceof Error){

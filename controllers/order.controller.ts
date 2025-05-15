@@ -4,6 +4,7 @@ import OrderModel from "../models/order.model.js";
 import UserModel from "../models/user.model.js";
 import mongoose from "mongoose";
 import { trackUserActivity } from "../services/userActivity.service.js";
+import { confirmInventoryDeduction } from "../services/inventory.service.js";
 
 import { Response, Request } from "express";
 import { OrderPayload } from '../type.js';
@@ -101,7 +102,16 @@ export async function CashOnDeliveryOrderController(request:Request,response:Res
         
         const savedOrder = await order.save()
         
-        // 6. Clear the cart
+        // 6. Update inventory - confirm deduction for each product
+        const inventoryUpdates = typedCartItems.map(item => {
+            return confirmInventoryDeduction(
+                item.productId._id.toString(),
+                item.quantity
+            );
+        });
+        await Promise.all(inventoryUpdates);
+        
+        // 7. Clear the cart
         await CartProductModel.deleteMany({ userId: userId })
         await UserModel.findByIdAndUpdate(userId, {
             shopping_cart: [],
@@ -132,12 +142,32 @@ export async function CashOnDeliveryOrderController(request:Request,response:Res
             await sendEmail({
                name: user.name,
                 subject: "Order Confirmation",
-               sendTo: 'haque22205101946@diu.edu.bd',
+               sendTo: user.email,
                 html: `
-                p>Dear ${user.name},</p>
-                          <p>Thank you for your order!</p>
-                          <p>We are pleased to confirm that your order has been successfully placed.</p>
-                            <p>Order Details:</p>
+                <p>Dear ${user.name},</p>
+                <p>Thank you for your order!</p>
+                <p>We are pleased to confirm that your order has been successfully placed.</p>
+                <p>Order Details:</p>
+                <ul>
+                    <li>Order ID: ${savedOrder.orderId}</li>
+                    <li>Shipping Address: ${selectedAddress}</li>
+                    <li>Product Name: ${typedCartItems[0].productId.title}</li>
+                    <li>Quantity: ${typedCartItems[0].quantity}</li>
+                    <li>Total Amount: ${totalAmount}</li>
+                </ul>
+                <p>We will notify you once your order is shipped.</p>
+                <p>Your order with ID <strong>${savedOrder.orderId}</strong> has been placed successfully.</p>
+                <p>Total Amount: <strong>${totalAmount}</strong></p> `
+
+            })
+
+            // Send mail to a admin
+            await sendEmail({
+                name: 'Admin',
+                sendTo: 'haque22205101946@diu.edu.bd',
+                subject: 'New Order',
+                html:`<p>New order placed</p>
+
                             <ul>
                                 <li>Order ID: ${savedOrder.orderId}</li>
                                 <li>Shipping Address: ${selectedAddress}</li>
@@ -145,10 +175,7 @@ export async function CashOnDeliveryOrderController(request:Request,response:Res
                                 <li>Quantity: ${typedCartItems[0].quantity}</li>
                                 <li>Total Amount: ${totalAmount}</li>
                             </ul>
-                            <p>We will notify you once your order is shipped.</p>
-                <p>Your order with ID <strong>${savedOrder.orderId}</strong> has been placed successfully.</p>
-                       <p>Total Amount: <strong>${totalAmount}</strong></p> `
-
+                `
             })
             
         } catch (error:unknown) {

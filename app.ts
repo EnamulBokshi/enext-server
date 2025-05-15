@@ -18,8 +18,10 @@ import orderRouter from "./routes/order.route.js";
 import preferenceRouter from "./routes/userPreference.route.js";
 import productPerformanceRouter from "./routes/productPerformance.route.js";
 import productAnalysisRouter from "./routes/productAnalysis.route.js";
+import inventoryRouter from "./routes/inventory.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
 import { performanceMiddleware } from "./middleware/performance.middleware.js";
+import { inventoryAlertMiddleware } from "./middleware/inventory.middleware.js";
 import assistRouter from "./routes/assist.route.js";
 import seedDatabase from "./scripts/seedCategoriesAndSubcategories.js";
 
@@ -41,6 +43,8 @@ app.use (helmet({
 app.use(activityTrackingMiddleware);
 // Apply performance tracking middleware
 app.use(performanceMiddleware);
+// Apply inventory alert middleware
+app.use(inventoryAlertMiddleware);
 
 app.get('/', (req, res) => {
     res.send('Hello World!')
@@ -62,6 +66,8 @@ app.use('/api/v1/preferences', preferenceRouter)
 app.use('/api/v1/product-performance', productPerformanceRouter)
 // Product photo analysis routes
 app.use('/api/v1/product-analysis', productAnalysisRouter)
+// Inventory management routes
+app.use('/api/v1/inventory', inventoryRouter)
 
 // AI routes
 app.use('/api/v1/assist',assistRouter )

@@ -14,8 +14,16 @@ This repository contains the backend server for an AI-driven ecommerce platform 
   - [Cart API](#cart-api)
   - [Address API](#address-api)
   - [Order API](#order-api)
+  - [Inventory API](#inventory-api)
   - [User Preference API](#user-preference-api)
+  - [Product Performance API](#product-performance-api)
+  - [Product Analysis API](#product-analysis-api)
   - [File Upload API](#file-upload-api)
+- [AI Features](#ai-features)
+- [Error Handling](#error-handling)
+- [Rate Limiting](#rate-limiting)
+- [Contributions](#contributions)
+- [License](#license)
 
 ## Setup
 
@@ -35,6 +43,8 @@ This repository contains the backend server for an AI-driven ecommerce platform 
    CLOUDINARY_CLOUD_NAME=your_cloudinary_name
    CLOUDINARY_API_KEY=your_cloudinary_api_key
    CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+   ADMIN_EMAIL=admin@yourdomain.com
+   RESEND_API_KEY=your_resend_api_key
    ```
 4. Start the server:
    ```bash
@@ -505,7 +515,7 @@ The SubCategory API provides endpoints for managing product subcategories.
 
 ### Cart API
 
-The Cart API provides endpoints for managing user shopping carts.
+The Cart API provides endpoints for managing user shopping carts. The cart system is integrated with inventory management to prevent overselling products.
 
 #### Add to Cart
 - **URL**: `/api/v1/carts`
@@ -536,6 +546,14 @@ The Cart API provides endpoints for managing user shopping carts.
     },
     "error": false,
     "success": true
+  }
+  ```
+- **Error Response (Out of Stock)**:
+  ```json
+  {
+    "message": "Product is out of stock",
+    "error": true,
+    "success": false
   }
   ```
 
@@ -571,56 +589,97 @@ The Cart API provides endpoints for managing user shopping carts.
   ```
 
 #### Update Cart Item
-- **URL**: `/api/v1/carts/update-cart`
+- **URL**: `/api/v1/carts/update-qty`
 - **Method**: `PUT`
 - **Auth Required**: Yes
 - **Request Body**:
   ```json
   {
-    "itemId": "item_id",
-    "quantity": 3
+    "_id": "item_id",
+    "qty": 3
   }
   ```
 - **Response**:
   ```json
   {
-    "message": "Cart updated successfully",
+    "message": "Update cart",
+    "success": true,
+    "error": false, 
     "data": {
-      "_id": "cart_id",
-      "user": "user_id",
-      "items": [
-        {
-          "product": "product_id",
-          "quantity": 3,
-          "_id": "item_id"
-        }
-      ],
-      "total": 89.97
+      "acknowledged": true,
+      "modifiedCount": 1,
+      "upsertedId": null,
+      "upsertedCount": 0,
+      "matchedCount": 1
+    }
+  }
+  ```
+- **Error Response (Not Enough Stock)**:
+  ```json
+  {
+    "message": "Not enough stock available",
+    "error": true,
+    "success": false
+  }
+  ```
+
+#### Remove Item from Cart
+- **URL**: `/api/v1/carts/:id`
+- **Method**: `DELETE`
+- **Auth Required**: Yes
+- **URL Parameters**:
+  - `id`: Cart item ID
+- **Response**:
+  ```json
+  {
+    "message": "Item remove",
+    "error": false,
+    "success": true,
+    "data": {
+      "acknowledged": true,
+      "deletedCount": 1
+    }
+  }
+  ```
+
+#### Get Cart Item
+- **URL**: `/api/v1/carts/:id`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **URL Parameters**:
+  - `id`: Cart item ID
+- **Response**:
+  ```json
+  {
+    "message": "Cart item",
+    "data": {
+      "_id": "cart_item_id",
+      "productId": {
+        "_id": "product_id",
+        "title": "Product Title",
+        "price": 29.99,
+        "images": ["image_url"],
+        "discount": 5
+      },
+      "userId": "user_id",
+      "quantity": 2
     },
     "error": false,
     "success": true
   }
   ```
 
-#### Remove Item from Cart
-- **URL**: `/api/v1/carts/remove-item`
+#### Clear Cart
+- **URL**: `/api/v1/carts/clear`
 - **Method**: `DELETE`
 - **Auth Required**: Yes
-- **Request Body**:
-  ```json
-  {
-    "itemId": "item_id"
-  }
-  ```
 - **Response**:
   ```json
   {
-    "message": "Item removed from cart",
+    "message": "Clear cart",
     "data": {
-      "_id": "cart_id",
-      "user": "user_id",
-      "items": [],
-      "total": 0
+      "acknowledged": true,
+      "deletedCount": 3
     },
     "error": false,
     "success": true
@@ -701,77 +760,71 @@ The Address API provides endpoints for managing user delivery addresses.
 
 ### Order API
 
-The Order API provides endpoints for managing user orders.
+The Order API provides endpoints for managing user orders with inventory integration.
 
-#### Create Order
-- **URL**: `/api/v1/orders`
+#### Create Order (Cash on Delivery)
+- **URL**: `/api/v1/orders/cash-on-delivery`
 - **Method**: `POST`
 - **Auth Required**: Yes
 - **Request Body**:
   ```json
   {
-    "addressId": "address_id",
-    "paymentMethod": "cod"
+    "addressId": "address_id"
   }
   ```
 - **Response**:
   ```json
   {
-    "message": "Order created successfully",
+    "message": "Order placed successfully",
     "data": {
       "_id": "order_id",
-      "user": "user_id",
-      "items": [
-        {
-          "product": "product_id",
-          "quantity": 2,
-          "price": 29.99,
-          "_id": "item_id"
-        }
-      ],
-      "shippingAddress": "address_id",
-      "total": 59.98,
-      "status": "pending",
-      "paymentMethod": "cod",
-      "createdAt": "2025-05-14T12:00:00.000Z"
+      "userId": "user_id",
+      "orderId": "ORD-60a7c8f9b8e7c43e3c2b9e4a",
+      "products": ["product_id1", "product_id2"],
+      "product_details": {
+        "name": "Product Title",
+        "image": ["image_url1", "image_url2"]
+      },
+      "paymentId": "",
+      "paymentStatus": "pending",
+      "shippingAddress": ["address_id"],
+      "subTotalAmount": 59.98,
+      "totalAmount": 54.98,
+      "orderStatus": "pending"
     },
     "error": false,
     "success": true
   }
   ```
 
-#### Get User Orders
-- **URL**: `/api/v1/orders`
+#### Get Order List
+- **URL**: `/api/v1/orders/order-list`
 - **Method**: `GET`
 - **Auth Required**: Yes
 - **Response**:
   ```json
   {
-    "message": "User orders",
+    "message": "order list",
     "data": [
       {
         "_id": "order_id",
-        "user": "user_id",
-        "items": [
-          {
-            "product": {
-              "_id": "product_id",
-              "title": "Product Title",
-              "images": ["image_url"]
-            },
-            "quantity": 2,
-            "price": 29.99,
-            "_id": "item_id"
-          }
-        ],
-        "shippingAddress": {
-          "_id": "address_id",
-          "name": "Home Address",
-          "addressLine1": "123 Main St"
+        "userId": "user_id",
+        "orderId": "ORD-60a7c8f9b8e7c43e3c2b9e4a",
+        "products": ["product_id1", "product_id2"],
+        "product_details": {
+          "name": "Product Title",
+          "image": ["image_url1", "image_url2"]
         },
-        "total": 59.98,
-        "status": "pending",
-        "paymentMethod": "cod",
+        "paymentStatus": "pending",
+        "shippingAddress": [{
+          "_id": "address_id",
+          "address_line1": "123 Main St",
+          "city": "New York",
+          "state": "NY"
+        }],
+        "subTotalAmount": 59.98,
+        "totalAmount": 54.98,
+        "orderStatus": "pending",
         "createdAt": "2025-05-14T12:00:00.000Z"
       }
     ],
@@ -780,71 +833,138 @@ The Order API provides endpoints for managing user orders.
   }
   ```
 
-#### Get Order Details
-- **URL**: `/api/v1/orders/:orderId`
+### Inventory API
+
+The Inventory API provides endpoints for managing product inventory with automatic threshold alerts.
+
+#### Get All Inventory
+- **URL**: `/api/v1/inventory`
 - **Method**: `GET`
 - **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Query Parameters**:
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (default: 10)
 - **Response**:
   ```json
   {
-    "message": "Order details",
-    "data": {
-      "_id": "order_id",
-      "user": "user_id",
-      "items": [
-        {
-          "product": {
-            "_id": "product_id",
-            "title": "Product Title",
-            "images": ["image_url"],
-            "price": 29.99,
-            "discount": 5
-          },
-          "quantity": 2,
-          "price": 29.99,
-          "_id": "item_id"
-        }
-      ],
-      "shippingAddress": {
-        "_id": "address_id",
-        "name": "Home Address",
-        "addressLine1": "123 Main St",
-        "city": "New York",
-        "state": "NY",
-        "postalCode": "10001",
-        "country": "USA",
-        "phone": "1234567890"
-      },
-      "total": 59.98,
-      "status": "pending",
-      "paymentMethod": "cod",
-      "createdAt": "2025-05-14T12:00:00.000Z"
+    "message": "Inventory data retrieved successfully",
+    "data": [
+      {
+        "_id": "inventory_id",
+        "productId": {
+          "_id": "product_id",
+          "title": "Product Title",
+          "images": ["image_url"]
+        },
+        "currentStock": 100,
+        "reservedStock": 5,
+        "availableStock": 95,
+        "threshold": 20,
+        "createdAt": "2025-05-14T12:00:00.000Z",
+        "updatedAt": "2025-05-14T14:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "totalCount": 50,
+      "totalPages": 5,
+      "currentPage": 1,
+      "limit": 10
     },
     "error": false,
     "success": true
   }
   ```
 
-#### Update Order Status (Admin)
-- **URL**: `/api/v1/orders/status`
+#### Get Low Stock Inventory
+- **URL**: `/api/v1/inventory/low-stock`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Response**:
+  ```json
+  {
+    "message": "Low stock inventory items retrieved successfully",
+    "data": [
+      {
+        "_id": "inventory_id",
+        "productId": {
+          "_id": "product_id",
+          "title": "Product Title",
+          "images": ["image_url"],
+          "price": 29.99,
+          "discount": 5
+        },
+        "currentStock": 15,
+        "reservedStock": 3,
+        "availableStock": 12,
+        "threshold": 20,
+        "createdAt": "2025-05-14T12:00:00.000Z",
+        "updatedAt": "2025-05-14T14:00:00.000Z"
+      }
+    ],
+    "count": 1,
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Get Product Inventory
+- **URL**: `/api/v1/inventory/product/:productId`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **URL Parameters**:
+  - `productId`: Product ID
+- **Response**:
+  ```json
+  {
+    "message": "Product inventory retrieved successfully",
+    "data": {
+      "_id": "inventory_id",
+      "productId": {
+        "_id": "product_id",
+        "title": "Product Title",
+        "images": ["image_url"],
+        "price": 29.99,
+        "discount": 5
+      },
+      "currentStock": 100,
+      "reservedStock": 5,
+      "availableStock": 95,
+      "threshold": 20,
+      "createdAt": "2025-05-14T12:00:00.000Z",
+      "updatedAt": "2025-05-14T14:00:00.000Z"
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Update Inventory
+- **URL**: `/api/v1/inventory/update`
 - **Method**: `PUT`
 - **Auth Required**: Yes
 - **Admin Required**: Yes
 - **Request Body**:
   ```json
   {
-    "orderId": "order_id",
-    "status": "shipped"
+    "productId": "product_id",
+    "currentStock": 150,
+    "threshold": 30
   }
   ```
 - **Response**:
   ```json
   {
-    "message": "Order status updated successfully",
+    "message": "Inventory updated successfully",
     "data": {
-      "_id": "order_id",
-      "status": "shipped",
-      "updatedAt": "2025-05-14T14:00:00.000Z"
+      "_id": "inventory_id",
+      "productId": "product_id",
+      "currentStock": 150,
+      "reservedStock": 5,
+      "availableStock": 145,
+      "threshold": 30,
+      "updatedAt": "2025-05-14T15:00:00.000Z"
     },
     "error": false,
     "success": true
@@ -930,6 +1050,180 @@ The User Preference API provides endpoints for managing user preferences to supp
   }
   ```
 
+### Product Performance API
+
+The Product Performance API provides endpoints for tracking and analyzing product performance metrics.
+
+#### Get Product Performance Metrics
+- **URL**: `/api/v1/product-performance/metrics`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Query Parameters**:
+  - `productId`: Product ID
+- **Response**:
+  ```json
+  {
+    "message": "Product performance metrics",
+    "data": {
+      "_id": "performance_id",
+      "productId": "product_id",
+      "views": 450,
+      "searches": 120,
+      "addedToCart": 80,
+      "purchases": 45,
+      "totalSold": 62,
+      "revenue": 1858.38,
+      "dailyMetrics": [
+        {
+          "date": "2025-05-14T00:00:00.000Z",
+          "views": 35,
+          "searches": 12,
+          "addedToCart": 8,
+          "purchases": 5,
+          "totalSold": 7,
+          "revenue": 209.93
+        }
+      ]
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Get Top Products
+- **URL**: `/api/v1/product-performance/top`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Query Parameters**:
+  - `metric`: Metric to sort by (views, purchases, revenue) (default: purchases)
+  - `limit`: Number of products to return (default: 10)
+- **Response**:
+  ```json
+  {
+    "message": "Top performing products",
+    "data": [
+      {
+        "_id": "performance_id",
+        "productId": {
+          "_id": "product_id",
+          "title": "Product Title",
+          "images": ["image_url"],
+          "price": 29.99
+        },
+        "views": 450,
+        "purchases": 45,
+        "revenue": 1858.38
+      }
+    ],
+    "error": false,
+    "success": true
+  }
+  ```
+
+### Product Analysis API
+
+The Product Analysis API provides AI-powered product analysis based on images.
+
+#### Analyze Product Photo
+- **URL**: `/api/v1/product-analysis/analyze`
+- **Method**: `POST`
+- **Auth Required**: No
+- **Content-Type**: `multipart/form-data`
+- **Request Body**:
+  ```
+  image: file
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "Product analysis complete",
+    "data": {
+      "productInfo": {
+        "title": "Detected Product Title",
+        "category": "Detected Category",
+        "description": "Detailed product description...",
+        "features": ["Feature 1", "Feature 2"],
+        "estimatedPrice": "$29.99 - $39.99"
+      },
+      "similarProducts": [
+        {
+          "title": "Similar Product 1",
+          "matchScore": 0.92,
+          "productId": "product_id1"
+        },
+        {
+          "title": "Similar Product 2",
+          "matchScore": 0.85,
+          "productId": "product_id2"
+        }
+      ]
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Get Product Info from Image
+- **URL**: `/api/v1/product-analysis/product-info`
+- **Method**: `POST`
+- **Auth Required**: No
+- **Content-Type**: `multipart/form-data`
+- **Request Body**:
+  ```
+  image: file
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "Product information extracted",
+    "data": {
+      "title": "Detected Product Title",
+      "category": "Detected Category",
+      "description": "Detailed product description...",
+      "features": ["Feature 1", "Feature 2"],
+      "estimatedPrice": "$29.99 - $39.99"
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Find Similar Products
+- **URL**: `/api/v1/product-analysis/similar-products`
+- **Method**: `POST`
+- **Auth Required**: No
+- **Content-Type**: `multipart/form-data`
+- **Request Body**:
+  ```
+  image: file
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "Similar products found",
+    "data": [
+      {
+        "title": "Similar Product 1",
+        "productId": "product_id1",
+        "price": 29.99,
+        "images": ["image_url1"],
+        "matchScore": 0.92
+      },
+      {
+        "title": "Similar Product 2",
+        "productId": "product_id2",
+        "price": 34.99,
+        "images": ["image_url2"],
+        "matchScore": 0.85
+      }
+    ],
+    "error": false,
+    "success": true
+  }
+  ```
+
 ### File Upload API
 
 The File Upload API provides endpoints for uploading images to Cloudinary.
@@ -965,6 +1259,12 @@ The platform includes several AI-driven features:
 2. **Search Enhancement**: The product search functionality uses MongoDB's text search capabilities, which can be enhanced with ML-based ranking to improve result relevance.
 
 3. **Personalized Recommendations**: The user preference API allows storing and retrieving user preferences to provide personalized product recommendations.
+
+4. **Smart Inventory Management**: The system automatically monitors inventory levels and sends email alerts to administrators when products reach or fall below threshold levels.
+
+5. **Product Image Analysis**: AI-powered image analysis extracts product information and finds similar products based on uploaded images.
+
+6. **Performance Analytics**: Tracks and analyzes product performance metrics to identify trends and popular products.
 
 ## Error Handling
 
