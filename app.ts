@@ -17,6 +17,7 @@ import addressRouter from "./routes/address.route.js";
 import orderRouter from "./routes/order.route.js";
 import preferenceRouter from "./routes/userPreference.route.js";
 import productPerformanceRouter from "./routes/productPerformance.route.js";
+import productAnalysisRouter from "./routes/productAnalysis.route.js";
 import { activityTrackingMiddleware } from "./middleware/activity.middleware.js";
 import { performanceMiddleware } from "./middleware/performance.middleware.js";
 import assistRouter from "./routes/assist.route.js";
@@ -59,7 +60,8 @@ app.use('/api/v1/orders',orderRouter)
 app.use('/api/v1/preferences', preferenceRouter)
 // Product performance routes
 app.use('/api/v1/product-performance', productPerformanceRouter)
-
+// Product photo analysis routes
+app.use('/api/v1/product-analysis', productAnalysisRouter)
 
 // AI routes
 app.use('/api/v1/assist',assistRouter )
