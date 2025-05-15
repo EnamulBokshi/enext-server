@@ -19,43 +19,60 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
                 const path = req.path;
                 const method = req.method;
                 
-                // Track product view
-                if (path.includes('/product/details') && responseBody.data && responseBody.data._id) {
+                // Track product view for individual product details
+                // This handles both the product by ID and product by slug endpoints
+                if ((path === '/api/v1/products/slug' || path === '/api/v1/products') && 
+                    (req.query.productId || req.query.slug) && 
+                    responseBody.data && responseBody.data._id) {
                     trackProductPerformance('view', { 
                         productId: responseBody.data._id 
                     });
                 }
                 
-                // Track product search
-                if ((path.includes('/product/search') || path.includes('/product/get')) && 
-                    responseBody.data && Array.isArray(responseBody.data)) {
-                    // Extract product IDs from search results
+                // Track product search - handle specific search endpoint
+                if (path === '/api/v1/products/search-product' && 
+                    responseBody.data && Array.isArray(responseBody.data) && 
+                    req.query.search) {
                     const productIds = responseBody.data.map((product: any) => product._id);
                     if (productIds.length > 0) {
                         trackSearchPerformance(productIds);
                     }
                 }
                 
-                // Track add to cart (from cart API)
-                if (path.includes('/cart/add') && method === 'POST' && req.body.productId) {
+                // Track regular product listing with search parameter
+                if (path === '/api/v1/products' && 
+                    responseBody.data && Array.isArray(responseBody.data) && 
+                    req.query.search) {
+                    const productIds = responseBody.data.map((product: any) => product._id);
+                    if (productIds.length > 0) {
+                        trackSearchPerformance(productIds);
+                    }
+                }
+                
+                // Track add to cart - matches the POST /api/v1/carts endpoint
+                if (path === '/api/v1/carts' && method === 'POST' && req.body.productId) {
                     trackProductPerformance('add_to_cart', { 
                         productId: req.body.productId 
                     });
                 }
                 
-                // Track purchases (from order completion)
-                if (path.includes('/order/create') && method === 'POST' && 
-                    responseBody.data && responseBody.data.products) {
+                // Track purchases - from order completion via cash on delivery
+                if (path === '/api/v1/orders/cash-on-delivery' && method === 'POST' && 
+                    responseBody.data && responseBody.data.items) {
                     
                     // Process each product in the order
-                    const products = responseBody.data.products;
-                    if (Array.isArray(products)) {
-                        products.forEach((product: any) => {
-                            if (product.productId && product.quantity && product.price) {
+                    const items = responseBody.data.items;
+                    if (Array.isArray(items)) {
+                        items.forEach((item: any) => {
+                            // Handle both embedded product objects and product references
+                            const productId = (item.product && item.product._id) ? 
+                                item.product._id : item.product;
+                            
+                            if (productId && item.quantity && item.price) {
                                 trackProductPerformance('purchase', {
-                                    productId: product.productId,
-                                    quantity: product.quantity,
-                                    price: product.price
+                                    productId: productId,
+                                    quantity: item.quantity,
+                                    price: item.price
                                 });
                             }
                         });
