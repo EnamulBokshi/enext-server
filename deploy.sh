@@ -17,15 +17,41 @@ fi
 echo "Installing project dependencies..."
 npm install
 
-# Step 3: Ensure TypeScript is installed
-echo "Ensuring TypeScript is installed..."
-npm install typescript --save
+# Step 3: Install TypeScript globally to ensure tsc is available in PATH
+echo "Installing TypeScript globally..."
+npm install -g typescript
 
-# Step 4: Build the project
+# Step 4: Make local TypeScript available
+echo "Ensuring local TypeScript is properly linked..."
+npm link typescript
+
+# Step 5: Build the project
 echo "Building the project..."
 npm run build
 
-# Step 5: Ensure vercel.json exists
+# Print success message
+echo "Build completed successfully!"
+echo "Ready for deployment to Vercel!"
+echo ""
+echo "IMPORTANT: Make sure all environment variables are configured in your Vercel dashboard!"
+echo "Required environment variables:"
+echo "- PORT"
+echo "- NODE_ENV"
+echo "- MONGODB_URI"
+echo "- RESEND_API_KEY"
+echo "- FRONTEND_URL"
+echo "- JWT_SECRET"
+echo "- JWT_ALGORITHM"
+echo "- JWT_EXPIRATION_TIME"
+echo "- JWT_ISSUER"
+echo "- CLOUDINARY_CLOUD_NAME"
+echo "- CLOUDINARY_API_KEY"
+echo "- CLOUDINARY_API_SECRET"
+echo "- CLOUDINARY_URL"
+echo "- GEMINI_API_KEY"
+echo "- EMAIL_VERIFY_URL"
+
+# Step 6: Ensure vercel.json exists
 if [ ! -f vercel.json ]; then
   echo "Creating vercel.json configuration file..."
   cat <<EOL > vercel.json
@@ -47,7 +73,7 @@ if [ ! -f vercel.json ]; then
 EOL
 fi
 
-# Step 6: Deploy to Vercel
+# Step 7: Deploy to Vercel
 echo "Deploying to Vercel..."
 vercel --prod --confirm
 
