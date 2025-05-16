@@ -236,3 +236,191 @@ export async function getOrderDetailsController(request:Request,response:Respons
         })
     }
 }
+
+/**
+ * Controller to get a specific order by its orderId
+ * This allows users to retrieve detailed information about a particular order
+ */
+export async function getOrderByIdController(request: Request, response: Response) {
+    try {
+        const userId = request.userId; // From auth middleware
+        const { orderId } = request.params; // Get orderId from URL parameter
+        
+        if (!orderId) {
+            return response.status(400).json({
+                message: "Order ID is required",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Find the order by orderId and ensure it belongs to the authenticated user
+        const order = await OrderModel.findOne({ 
+            orderId: orderId,
+            userId: userId
+        }).populate('shippingAddress')
+          .populate('products');
+        
+        if (!order) {
+            return response.status(404).json({
+                message: "Order not found",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Track view order detail activity
+        await trackUserActivity(request, 'view_order_detail', {
+            orderId: order.orderId,
+            timestamp: new Date()
+        });
+        
+        return response.json({
+            message: "Order details retrieved successfully",
+            data: order,
+            error: false,
+            success: true
+        });
+    } catch (error: unknown) {
+        let errorMessage = "Something went wrong";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        console.error("Error getting order by ID:", errorMessage);
+        return response.status(500).json({
+            message: errorMessage,
+            error: true,
+            success: false
+        });
+    }
+}
+/**
+ * Controller to cancel an order
+ * This allows users to cancel their orders if they haven't been shipped yet
+ */
+export async function cancelOrderController(request: Request, response: Response) {
+    try {
+        const userId = request.userId; // From auth middleware
+        const { orderId } = request.params; // Get orderId from URL parameter
+        
+        if (!orderId) {
+            return response.status(400).json({
+                message: "Order ID is required",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Find the order by orderId and ensure it belongs to the authenticated user
+        const order = await OrderModel.findOne({ 
+            orderId: orderId,
+            userId: userId
+        });
+        
+        if (!order) {
+            return response.status(404).json({
+                message: "Order not found",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Check if the order can be cancelled (not shipped yet)
+        if (order.orderStatus === "shipped") {
+            return response.status(400).json({
+                message: "Cannot cancel an order that has already been shipped",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Update the order status to 'cancelled'
+        order.orderStatus = "cancelled";
+        await order.save();
+        
+        // Track the cancellation activity
+        await trackUserActivity(request, 'cancel_order', {
+            orderId: order.orderId,
+            timestamp: new Date()
+        });
+        
+        return response.json({
+            message: "Order cancelled successfully",
+            data: order,
+            error: false,
+            success: true
+        });
+    } catch (error: unknown) {
+        let errorMessage = "Something went wrong";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        console.error("Error cancelling order:", errorMessage);
+        return response.status(500).json({
+            message: errorMessage,
+            error: true,
+            success: false
+        });
+    }
+}
+/**
+ * Controller to update the order status
+ * This allows admins to update the status of an order
+ */
+export async function updateOrderStatusController(request: Request, response: Response) {
+    try {
+        const { orderId } = request.params; // Get orderId from URL parameter
+        const { status } = request.body; // Get new status from request body
+        
+        if (!orderId) {
+            return response.status(400).json({
+                message: "Order ID is required",
+                error: true,
+                success: false
+            });
+        }
+        
+        if (!status) {
+            return response.status(400).json({
+                message: "New status is required",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Find the order by orderId
+        const order = await OrderModel.findOne({ 
+            orderId: orderId
+        });
+        
+        if (!order) {
+            return response.status(404).json({
+                message: "Order not found",
+                error: true,
+                success: false
+            });
+        }
+        
+        // Update the order status
+        order.orderStatus = status;
+        await order.save();
+        
+        return response.json({
+            message: "Order status updated successfully",
+            data: order,
+            error: false,
+            success: true
+        });
+    } catch (error: unknown) {
+        let errorMessage = "Something went wrong";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        console.error("Error updating order status:", errorMessage);
+        return response.status(500).json({
+            message: errorMessage,
+            error: true,
+            success: false
+        });
+    }
+}

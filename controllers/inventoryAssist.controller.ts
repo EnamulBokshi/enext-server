@@ -86,7 +86,7 @@ export const getInventoryOverview = async (req: Request, res: Response) => {
           reservedStock: item.reservedStock,
           threshold: item.threshold,
           status: item.availableStock <= 0 ? 'Out of Stock' : 
-                 item.availableStock <= item.threshold ? 'Low Stock' : 'In Stock'
+                 item.availableStock <= (item?.threshold ?? 0) ? 'Low Stock' : 'In Stock'
         }))
       }
     });
@@ -119,7 +119,7 @@ export const getInventoryByCategory = async (req: Request, res: Response) => {
       let status = 'In Stock';
       if (item.availableStock <= 0) {
         status = 'Out of Stock';
-      } else if (item.availableStock <= item.threshold) {
+      } else if (item.availableStock <= (item.threshold ?? 0)) {
         status = 'Low Stock';
       }
       inventoryStatusMap.set(item.productId.toString(), {
@@ -266,7 +266,7 @@ export const searchInventory = async (req: Request, res: Response) => {
         reservedStock: item.reservedStock,
         threshold: item.threshold,
         status: item.availableStock <= 0 ? 'Out of Stock' : 
-               item.availableStock <= item.threshold ? 'Low Stock' : 'In Stock'
+               item.availableStock <= (item.threshold ?? 0) ? 'Low Stock' : 'In Stock'
       };
     });
     

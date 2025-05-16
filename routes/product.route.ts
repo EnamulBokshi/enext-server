@@ -4,6 +4,7 @@ import { createProductController, deleteProductDetails, getProductByCategory, ge
 import { admin } from '../middleware/admin.middleware.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import upload from '../middleware/multer.middleware.js'
+import { productToInventoryMiddleware } from '../middleware/inventory.middleware.js'
 
 const productRouter = Router()
 
@@ -15,8 +16,14 @@ const productUpload = upload.fields([
   { name: 'productImages', maxCount: 5 }
 ]);
 
-// Create product route (requires auth, admin rights, and file upload)
-productRouter.post("/", asyncHandler(authMiddleware), asyncHandler(admin), productUpload, asyncHandler(createProductController))
+// Create product route (requires auth, admin rights, file upload, and inventory middleware)
+productRouter.post("/", 
+  asyncHandler(authMiddleware), 
+  asyncHandler(admin), 
+  productUpload, 
+  productToInventoryMiddleware, // Add inventory middleware to automatically create inventory entries
+  asyncHandler(createProductController)
+)
 
 // Get products route
 productRouter.get('/', asyncHandler(getProductController))

@@ -47,11 +47,12 @@ export const createProductController = async(request:Request,response:Response)=
             unit,
             stock,
             price,
-            discount,
-            description,
+            discount = 0,
+            description = "",
             more_details,
         } = request.body 
 
+        console.log("createProductController", request.body);
         if(!title || !category || !subCategory || !unit || !price || !description ){
             return response.status(400).json({
                 message : "Enter required fields",
@@ -91,9 +92,33 @@ export const createProductController = async(request:Request,response:Response)=
         // Wait for all image uploads to complete
         const imageUrls = await Promise.all(imagePromises);
 
-        // Parse JSON strings if they're sent as form data strings
-        const parsedCategory = typeof category === 'string' ? JSON.parse(category) : category;
-        const parsedSubCategory = typeof subCategory === 'string' ? JSON.parse(subCategory) : subCategory;
+        // Parse category data - handle different formats
+        let parsedCategory;
+        if (typeof category === 'string') {
+            try {
+                // Try to parse as JSON first
+                parsedCategory = JSON.parse(category);
+            } catch (e) {
+                // If it's not valid JSON, treat it as a simple ID string
+                parsedCategory = category;
+            }
+        } else {
+            parsedCategory = category;
+        }
+
+        // Parse subCategory data - handle different formats
+        let parsedSubCategory;
+        if (typeof subCategory === 'string') {
+            try {
+                // Try to parse as JSON first
+                parsedSubCategory = JSON.parse(subCategory);
+            } catch (e) {
+                // If it's not valid JSON, treat it as a simple ID string
+                parsedSubCategory = subCategory;
+            }
+        } else {
+            parsedSubCategory = subCategory;
+        }
 
         const slug = title.replace(/\s+/g, '-').toLowerCase(); // Generate slug from title
         // Check if the slug already exists

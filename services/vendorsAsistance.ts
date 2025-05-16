@@ -29,7 +29,7 @@ export const vendorAssist = async (question: string) => {
             let stockStatus = "In Stock";
             if (item.availableStock <= 0) {
                 stockStatus = "Out of Stock";
-            } else if (item.availableStock <= item.threshold) {
+            } else if (item.availableStock <= (item.threshold ?? 0)) {
                 stockStatus = "Low Stock";
             }
             

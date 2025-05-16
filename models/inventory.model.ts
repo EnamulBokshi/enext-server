@@ -16,11 +16,13 @@ const invenTorySchema = new mongoose.Schema({
     },
     availableStock: {
         type: Number,
-        required: true
+        required: true,
+        default: 2
     },
     threshold: {
         type: Number,
-        required: true
+        required: false,
+        default: 2
     },
     
 },{
