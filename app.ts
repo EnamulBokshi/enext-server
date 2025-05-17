@@ -1,8 +1,6 @@
 import express from "express";
 import cors from 'cors'
-
 import cookieParser from "cookie-parser";
-
 import { port } from "./config/env.js";
 import morgan from "morgan";
 import helmet from "helmet";
@@ -25,6 +23,11 @@ import { performanceMiddleware } from "./middleware/performance.middleware.js";
 import { inventoryAlertMiddleware } from "./middleware/inventory.middleware.js";
 import assistRouter from "./routes/assist.route.js";
 
+// Database connection
+connectDB().catch(err => {
+    console.error('Failed to connect to database:', err);
+});
+
 const app = express();
 
 app.use(cors({
@@ -35,7 +38,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser())
 app.use(morgan('dev'))
-app.use (helmet({
+app.use(helmet({
     crossOriginResourcePolicy: false,
 }))
 
@@ -49,7 +52,6 @@ app.use(inventoryAlertMiddleware);
 app.get('/', (req, res) => {
     res.send('Hello World!')
 })
-
 
 // User routes
 app.use('/api/v1/users',userRouter)
@@ -70,12 +72,16 @@ app.use('/api/v1/product-analysis', productAnalysisRouter)
 app.use('/api/v1/inventory', inventoryRouter)
 // Inventory AI assistant routes
 app.use('/api/v1/inventory-assist', inventoryAssistRouter)
-
 // AI routes
-app.use('/api/v1/assist',assistRouter )
-connectDB().then(() =>{
+app.use('/api/v1/assist',assistRouter)
+
+// Start the server only in development mode, not in Vercel production
+if (process.env.NODE_ENV !== 'production') {
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
         console.log(`http://localhost:${port}`);
     });
-})
+}
+
+// Export the Express app for Vercel serverless functions
+export default app;
