@@ -18,6 +18,8 @@ This repository contains the backend server for an AI-driven ecommerce platform 
   - [User Preference API](#user-preference-api)
   - [Product Performance API](#product-performance-api)
   - [Product Analysis API](#product-analysis-api)
+  - [AI Assistant API](#ai-assistant-api)
+  - [Inventory Assistant API](#inventory-assistant-api)
   - [File Upload API](#file-upload-api)
 - [AI Features](#ai-features)
 - [Error Handling](#error-handling)
@@ -1224,26 +1226,125 @@ The Product Analysis API provides AI-powered product analysis based on images.
   }
   ```
 
-### File Upload API
+### AI Assistant API
 
-The File Upload API provides endpoints for uploading images to Cloudinary.
+The AI Assistant API provides endpoints for an AI-powered shopping assistant that can answer customer queries about products, inventory, and shopping experience.
 
-#### Upload Image
-- **URL**: `/api/v1/file/upload`
+#### Ask Question to AI Assistant
+- **URL**: `/api/v1/assist/ask`
 - **Method**: `POST`
-- **Auth Required**: Yes
-- **Content-Type**: `multipart/form-data`
+- **Auth Required**: No
 - **Request Body**:
-  ```
-  image: file
+  ```json
+  {
+    "question": "Do you have any smartphones under $500?"
+  }
   ```
 - **Response**:
   ```json
   {
-    "message": "File uploaded successfully",
+    "message": "Assistant response",
     "data": {
-      "url": "cloudinary_image_url",
-      "public_id": "cloudinary_public_id"
+      "response": "Yes, we have several smartphones under $500. Some options include the TechPro X5 ($449), SmartPhone Plus ($399), and MobiTech Ultra ($489). All of these models have great features including high-quality cameras and long battery life. Would you like more specific information about any of these models?"
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+### Inventory Assistant API
+
+The Inventory Assistant API provides AI-powered assistance for inventory management.
+
+#### Get Inventory Insights
+- **URL**: `/api/v1/inventory-assist/insights`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Response**:
+  ```json
+  {
+    "message": "Inventory insights generated",
+    "data": {
+      "lowStockItems": 5,
+      "outOfStockItems": 2,
+      "recommendedActions": [
+        {
+          "productId": "product_id1",
+          "productName": "Product Name",
+          "currentStock": 15,
+          "threshold": 20,
+          "recommendation": "Restock soon - approaching threshold",
+          "suggestedOrderQuantity": 50
+        }
+      ],
+      "inventoryHealth": "Good",
+      "insights": "Your inventory is generally well-stocked. Consider restocking 5 items that are below threshold levels. Based on sales trends, expect higher demand for electronics in the coming weeks."
+    },
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Get Reorder Recommendations
+- **URL**: `/api/v1/inventory-assist/reorder-recommendations`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Response**:
+  ```json
+  {
+    "message": "Reorder recommendations",
+    "data": [
+      {
+        "productId": "product_id",
+        "productName": "Product Name",
+        "currentStock": 15,
+        "threshold": 20,
+        "avgDailySales": 2.5,
+        "daysToThreshold": 6,
+        "recommendedOrderQuantity": 50,
+        "recommendedOrderDate": "2025-05-24T00:00:00.000Z",
+        "priority": "Medium"
+      }
+    ],
+    "error": false,
+    "success": true
+  }
+  ```
+
+#### Get Sales Forecast
+- **URL**: `/api/v1/inventory-assist/sales-forecast`
+- **Method**: `GET`
+- **Auth Required**: Yes
+- **Admin Required**: Yes
+- **Query Parameters**:
+  - `productId`: (optional) Product ID
+  - `days`: Number of days to forecast (default: 30)
+- **Response**:
+  ```json
+  {
+    "message": "Sales forecast generated",
+    "data": {
+      "forecasts": [
+        {
+          "productId": "product_id",
+          "productName": "Product Name",
+          "dailyForecasts": [
+            {
+              "date": "2025-05-19T00:00:00.000Z",
+              "predictedSales": 3
+            },
+            {
+              "date": "2025-05-20T00:00:00.000Z",
+              "predictedSales": 4
+            }
+          ],
+          "totalForecastedSales": 120,
+          "confidenceLevel": "High"
+        }
+      ],
+      "insights": "Based on historical sales data and current trends, we expect a 15% increase in sales over the next 30 days, with peak sales occurring around the 25th of May."
     },
     "error": false,
     "success": true
@@ -1260,11 +1361,15 @@ The platform includes several AI-driven features:
 
 3. **Personalized Recommendations**: The user preference API allows storing and retrieving user preferences to provide personalized product recommendations.
 
-4. **Smart Inventory Management**: The system automatically monitors inventory levels and sends email alerts to administrators when products reach or fall below threshold levels.
+4. **Smart Inventory Management**: The system automatically monitors inventory levels and sends email alerts to administrators when products reach or fall below threshold levels. It also provides demand forecasting, auto-reorder recommendations, and sellout prevention strategies.
 
 5. **Product Image Analysis**: AI-powered image analysis extracts product information and finds similar products based on uploaded images.
 
 6. **Performance Analytics**: Tracks and analyzes product performance metrics to identify trends and popular products.
+
+7. **AI Shopping Assistant**: Provides a natural language interface for customers to ask questions about products, inventory, and the shopping experience. The assistant uses Google's Gemini AI model to provide accurate, context-aware responses based on the current product catalog.
+
+8. **Inventory Optimization**: AI-driven inventory insights help optimize stock levels, prevent stockouts, and manage reordering efficiently.
 
 ## Error Handling
 
