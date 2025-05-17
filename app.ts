@@ -24,6 +24,7 @@ import { performanceMiddleware } from "./middleware/performance.middleware.js";
 import { inventoryAlertMiddleware } from "./middleware/inventory.middleware.js";
 import assistRouter from "./routes/assist.route.js";
 import { initializeScheduledJobs, stopScheduledJobs } from "./services/smartInventory/scheduler.js";
+import { getInventoryController } from "./services/inventory.service.js";
 
 // Database connection
 connectDB().catch(err => {
@@ -85,6 +86,8 @@ app.use('/api/v1/inventory-assist', inventoryAssistRouter)
 app.use('/api/v1/ratings', productRatingRouter)
 // AI routes
 app.use('/api/v1/assist',assistRouter)
+
+app.use("/api/v1/inventory/public", getInventoryController);
 
 // Start the server only in development mode, not in Vercel production
 if (nodeEnv !== 'production') {

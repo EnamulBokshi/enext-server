@@ -22,7 +22,7 @@ inventoryRouter.get('/', asyncHandler(admin), asyncHandler(getInventoryControlle
 
 // 
 
-inventoryRouter.get('/public', asyncHandler(getInventoryController));
+// inventoryRouter.get('/public', asyncHandler(getInventoryController));
 
 // Get low stock inventory items (those at or below threshold)
 inventoryRouter.get('/low-stock', asyncHandler(admin), asyncHandler(getLowStockInventoryController));
