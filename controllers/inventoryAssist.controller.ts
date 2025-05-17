@@ -2,6 +2,9 @@ import { Response, Request } from "express";
 import { vendorAssist } from "../services/vendorsAsistance.js";
 import InventoryModel from "../models/inventory.model.js";
 import ProductModel from "../models/product.model.js";
+import { generateDemandForecast } from "../services/smartInventory/demandForecaster.js";
+import { toggleAutoReorder, updateReorderParameters, processAutoReorders, checkReorderNeeds } from "../services/smartInventory/autoReorder.js";
+import { calculateReorderParameters, calculateSalesVelocity, analyzeSeasonality, analyzeSalesTrend } from "../services/smartInventory/demandForecaster.js";
 
 /**
  * Get AI-powered assistant response for inventory-related queries
@@ -288,6 +291,324 @@ export const searchInventory = async (req: Request, res: Response) => {
       success: false, 
       error: true, 
       message: "Failed to search inventory"
+    });
+  }
+};
+
+/**
+ * Get AI-generated demand forecast for a product
+ */
+export const getProductForecast = async (req: Request, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { days = 30 } = req.query;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Product ID is required"
+      });
+    }
+    
+    const forecastDays = Number(days);
+    if (isNaN(forecastDays) || forecastDays <= 0 || forecastDays > 365) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Days parameter must be a number between 1 and 365"
+      });
+    }
+    
+    // Get existing inventory data
+    const inventory = await InventoryModel.findOne({ productId }).populate({
+      path: 'productId',
+      select: 'title price discount images category'
+    });
+    
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        error: true,
+        message: "Inventory not found for this product"
+      });
+    }
+    
+    // Generate forecast
+    const forecastedDemand = await generateDemandForecast(productId, forecastDays);
+    
+    // Get sales trend analysis
+    const salesTrend = await analyzeSalesTrend(productId);
+    
+    // Calculate optimal reorder parameters
+    const reorderParams = await calculateReorderParameters(productId);
+    
+    // Get updated inventory after calculations
+    const updatedInventory = await InventoryModel.findOne({ productId });
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: "Demand forecast generated",
+      data: {
+        productId,
+        productName: (inventory.productId as any).title,
+        currentStock: inventory.currentStock,
+        availableStock: inventory.availableStock,
+        forecastDays,
+        forecastedDemand,
+        salesVelocity: updatedInventory?.salesVelocity || 0,
+        salesTrend,
+        reorderPoint: reorderParams.reorderPoint,
+        optimalOrderQuantity: reorderParams.optimalOrderQuantity,
+        autoReorderEnabled: updatedInventory?.autoReorderEnabled || false
+      }
+    });
+  } catch (error) {
+    console.error("Error in getProductForecast:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to generate demand forecast"
+    });
+  }
+};
+
+/**
+ * Toggle auto-reorder setting for a product
+ */
+export const toggleProductAutoReorder = async (req: Request, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { enabled } = req.body;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Product ID is required"
+      });
+    }
+    
+    if (enabled === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Enabled parameter is required"
+      });
+    }
+    
+    const result = await toggleAutoReorder(productId, Boolean(enabled));
+    
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        error: true,
+        message: "Failed to update auto-reorder setting"
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: enabled ? "Auto-reorder enabled" : "Auto-reorder disabled",
+      data: { productId, autoReorderEnabled: Boolean(enabled) }
+    });
+  } catch (error) {
+    console.error("Error in toggleProductAutoReorder:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to update auto-reorder setting"
+    });
+  }
+};
+
+/**
+ * Update reorder parameters for a product
+ */
+export const updateProductReorderParams = async (req: Request, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { reorderPoint, orderQuantity, leadTime } = req.body;
+    
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Product ID is required"
+      });
+    }
+    
+    if (reorderPoint === undefined || orderQuantity === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: true,
+        message: "Reorder point and order quantity are required"
+      });
+    }
+    
+    const result = await updateReorderParameters(
+      productId, 
+      Number(reorderPoint), 
+      Number(orderQuantity),
+      leadTime !== undefined ? Number(leadTime) : undefined
+    );
+    
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        error: true,
+        message: "Failed to update reorder parameters"
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: "Reorder parameters updated",
+      data: { 
+        productId, 
+        reorderPoint: Number(reorderPoint), 
+        orderQuantity: Number(orderQuantity),
+        leadTime: leadTime !== undefined ? Number(leadTime) : undefined
+      }
+    });
+  } catch (error) {
+    console.error("Error in updateProductReorderParams:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to update reorder parameters"
+    });
+  }
+};
+
+/**
+ * Get pending reorder requests
+ */
+export const getPendingReorders = async (req: Request, res: Response) => {
+  try {
+    const reorderRequests = await checkReorderNeeds();
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: "Pending reorders retrieved",
+      data: reorderRequests,
+      count: reorderRequests.length
+    });
+  } catch (error) {
+    console.error("Error in getPendingReorders:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to get pending reorders"
+    });
+  }
+};
+
+/**
+ * Process all pending auto-reorders
+ */
+export const triggerAutoReorders = async (req: Request, res: Response) => {
+  try {
+    const processedCount = await processAutoReorders();
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: "Auto-reorders processed",
+      data: {
+        processedCount
+      }
+    });
+  } catch (error) {
+    console.error("Error in triggerAutoReorders:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to process auto-reorders"
+    });
+  }
+};
+
+/**
+ * Get analytics dashboard for smart inventory management
+ */
+export const getSmartInventoryDashboard = async (req: Request, res: Response) => {
+  try {
+    // Get total counts
+    const totalProducts = await InventoryModel.countDocuments();
+    const autoReorderEnabled = await InventoryModel.countDocuments({ autoReorderEnabled: true });
+    
+    // Get pending reorders
+    const pendingReorders = await checkReorderNeeds();
+    
+    // Get at-risk products (below threshold but not yet at reorder point)
+    const atRiskProducts = await InventoryModel.find({
+      $and: [
+        { availableStock: { $gt: 0 } },
+        { $expr: { $lte: ["$availableStock", "$threshold"] } },
+        { $expr: { $gt: ["$availableStock", "$reorderPoint"] } }
+      ]
+    }).populate({
+      path: 'productId',
+      select: 'title price discount images'
+    }).limit(5);
+    
+    // Get smart inventory efficiency stats
+    const allInventory = await InventoryModel.find();
+    const totalStock = allInventory.reduce((sum, item) => sum + item.currentStock, 0);
+    const reservedStock = allInventory.reduce((sum, item) => sum + item.reservedStock, 0);
+    const forecastedDemand = allInventory.reduce((sum, item) => sum + (item.forecastedDemand || 0), 0);
+    
+    // Format at-risk products
+    const formattedAtRiskProducts = atRiskProducts.map(item => ({
+      id: item._id,
+      productId: item.productId._id,
+      productName: (item.productId as any).title,
+      currentStock: item.currentStock,
+      availableStock: item.availableStock,
+      threshold: item.threshold,
+      reorderPoint: item.reorderPoint,
+      daysTillReorderPoint: item.salesVelocity > 0 ? 
+        Math.floor((item.availableStock - item.reorderPoint) / item.salesVelocity) : null
+    }));
+    
+    return res.status(200).json({
+      success: true,
+      error: false,
+      message: "Smart inventory dashboard data",
+      data: {
+        summary: {
+          totalProducts,
+          autoReorderEnabled,
+          pendingReorderCount: pendingReorders.length,
+          atRiskCount: await InventoryModel.countDocuments({
+            $and: [
+              { availableStock: { $gt: 0 } },
+              { $expr: { $lte: ["$availableStock", "$threshold"] } },
+              { $expr: { $gt: ["$availableStock", "$reorderPoint"] } }
+            ]
+          })
+        },
+        inventory: {
+          totalStock,
+          reservedStock,
+          availableStock: totalStock - reservedStock,
+          forecastedDemand
+        },
+        pendingReorders: pendingReorders.slice(0, 5), // Show only top 5
+        atRiskProducts: formattedAtRiskProducts
+      }
+    });
+  } catch (error) {
+    console.error("Error in getSmartInventoryDashboard:", error);
+    return res.status(500).json({
+      success: false,
+      error: true,
+      message: "Failed to get smart inventory dashboard"
     });
   }
 };

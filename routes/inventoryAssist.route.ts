@@ -6,7 +6,13 @@ import {
     getInventoryAssist, 
     getInventoryOverview, 
     getInventoryByCategory,
-    searchInventory
+    searchInventory,
+    getProductForecast,
+    toggleProductAutoReorder,
+    updateProductReorderParams,
+    getPendingReorders,
+    triggerAutoReorders,
+    getSmartInventoryDashboard
 } from "../controllers/inventoryAssist.controller.js";
 
 const inventoryAssistRouter = Router();
@@ -25,5 +31,13 @@ inventoryAssistRouter.get("/by-category", asyncHandler(admin), asyncHandler(getI
 
 // Search and filter inventory
 inventoryAssistRouter.get("/search", asyncHandler(admin), asyncHandler(searchInventory));
+
+// Smart inventory management endpoints
+inventoryAssistRouter.get("/smart-dashboard", asyncHandler(admin), asyncHandler(getSmartInventoryDashboard));
+inventoryAssistRouter.get("/forecast/:productId", asyncHandler(admin), asyncHandler(getProductForecast));
+inventoryAssistRouter.post("/auto-reorder/:productId", asyncHandler(admin), asyncHandler(toggleProductAutoReorder));
+inventoryAssistRouter.put("/reorder-params/:productId", asyncHandler(admin), asyncHandler(updateProductReorderParams));
+inventoryAssistRouter.get("/pending-reorders", asyncHandler(admin), asyncHandler(getPendingReorders));
+inventoryAssistRouter.post("/process-reorders", asyncHandler(admin), asyncHandler(triggerAutoReorders));
 
 export default inventoryAssistRouter;

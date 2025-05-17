@@ -1,31 +1,41 @@
 import InventoryModel from "../models/inventory.model.js";
 import ProductModel from "../models/product.model.js";
 import { Request, Response } from "express";
+import { 
+  withInventoryLock, 
+  recordSalesHistory, 
+  synchronizeInventory,
+  reconcileInventory 
+} from "./smartInventory/inventorySync.js";
+import { generateDemandForecast } from "./smartInventory/demandForecaster.js";
 
 /**
  * Service function to update inventory when products are added to cart
  */
 export const reserveInventory = async (productId: string, quantity: number) => {
     try {
-        // Find the inventory for this product
-        const inventory = await InventoryModel.findOne({ productId });
-        
-        if (!inventory) {
-            console.error(`Inventory not found for product ID: ${productId}`);
-            return false;
-        }
-        
-        // Check if there's enough available stock
-        if (inventory.availableStock < quantity) {
-            return false;
-        }
-        
-        // Update inventory
-        inventory.reservedStock += quantity;
-        inventory.availableStock = inventory.currentStock - inventory.reservedStock;
-        
-        await inventory.save();
-        return true;
+        // Use inventory lock to ensure concurrency control
+        return await withInventoryLock(productId, async () => {
+            // Find the inventory for this product
+            const inventory = await InventoryModel.findOne({ productId });
+            
+            if (!inventory) {
+                console.error(`Inventory not found for product ID: ${productId}`);
+                return false;
+            }
+            
+            // Check if there's enough available stock
+            if (inventory.availableStock < quantity) {
+                return false;
+            }
+            
+            // Update inventory
+            inventory.reservedStock += quantity;
+            inventory.availableStock = inventory.currentStock - inventory.reservedStock;
+            
+            await inventory.save();
+            return true;
+        });
     } catch (error) {
         console.error("Error reserving inventory:", error);
         return false;
@@ -37,20 +47,23 @@ export const reserveInventory = async (productId: string, quantity: number) => {
  */
 export const releaseInventory = async (productId: string, quantity: number) => {
     try {
-        // Find the inventory for this product
-        const inventory = await InventoryModel.findOne({ productId });
-        
-        if (!inventory) {
-            console.error(`Inventory not found for product ID: ${productId}`);
-            return false;
-        }
-        
-        // Update inventory (ensure reserved stock doesn't go below 0)
-        inventory.reservedStock = Math.max(0, inventory.reservedStock - quantity);
-        inventory.availableStock = inventory.currentStock - inventory.reservedStock;
-        
-        await inventory.save();
-        return true;
+        // Use inventory lock to ensure concurrency control
+        return await withInventoryLock(productId, async () => {
+            // Find the inventory for this product
+            const inventory = await InventoryModel.findOne({ productId });
+            
+            if (!inventory) {
+                console.error(`Inventory not found for product ID: ${productId}`);
+                return false;
+            }
+            
+            // Update inventory (ensure reserved stock doesn't go below 0)
+            inventory.reservedStock = Math.max(0, inventory.reservedStock - quantity);
+            inventory.availableStock = inventory.currentStock - inventory.reservedStock;
+            
+            await inventory.save();
+            return true;
+        });
     } catch (error) {
         console.error("Error releasing inventory:", error);
         return false;
@@ -62,21 +75,35 @@ export const releaseInventory = async (productId: string, quantity: number) => {
  */
 export const confirmInventoryDeduction = async (productId: string, quantity: number) => {
     try {
-        // Find the inventory for this product
-        const inventory = await InventoryModel.findOne({ productId });
-        
-        if (!inventory) {
-            console.error(`Inventory not found for product ID: ${productId}`);
-            return false;
-        }
-        
-        // Update inventory
-        inventory.currentStock = Math.max(0, inventory.currentStock - quantity);
-        inventory.reservedStock = Math.max(0, inventory.reservedStock - quantity);
-        inventory.availableStock = inventory.currentStock - inventory.reservedStock;
-        
-        await inventory.save();
-        return true;
+        // Use inventory lock to ensure concurrency control
+        return await withInventoryLock(productId, async () => {
+            // Find the inventory for this product
+            const inventory = await InventoryModel.findOne({ productId });
+            
+            if (!inventory) {
+                console.error(`Inventory not found for product ID: ${productId}`);
+                return false;
+            }
+            
+            // Update inventory
+            inventory.currentStock = Math.max(0, inventory.currentStock - quantity);
+            inventory.reservedStock = Math.max(0, inventory.reservedStock - quantity);
+            inventory.availableStock = inventory.currentStock - inventory.reservedStock;
+            
+            // Record the sale in the sales history for trend analysis
+            await recordSalesHistory(productId, quantity);
+            
+            // If this purchase brings stock below threshold, trigger demand forecasting
+            if (inventory.availableStock <= (inventory?.threshold ?? 0)) {
+                // Don't await to avoid blocking the order process
+                generateDemandForecast(productId).catch(err => 
+                    console.error(`Error generating forecast after purchase for ${productId}:`, err)
+                );
+            }
+            
+            await inventory.save();
+            return true;
+        });
     } catch (error) {
         console.error("Error confirming inventory deduction:", error);
         return false;
@@ -164,9 +191,20 @@ export const getProductInventoryController = async (req: Request, res: Response)
             });
         }
         
+        // Include forecasted demand if available
+        const response = {
+            ...inventory.toObject(),
+            forecastInfo: {
+                hasForecast: inventory.forecastedDemand > 0,
+                forecastedDemand: inventory.forecastedDemand || 0,
+                salesVelocity: inventory.salesVelocity || 0,
+                autoReorderEnabled: inventory.autoReorderEnabled || false
+            }
+        };
+        
         return res.json({
             message: "Product inventory retrieved successfully",
-            data: inventory,
+            data: response,
             error: false,
             success: true
         });
@@ -235,10 +273,37 @@ export const updateInventoryController = async (req: Request, res: Response) => 
             });
         }
         
-        // Find the inventory for this product
-        const inventory = await InventoryModel.findOne({ productId });
+        // Use inventory lock to ensure concurrency control
+        const result = await withInventoryLock(productId, async () => {
+            // Find the inventory for this product
+            const inventory = await InventoryModel.findOne({ productId });
+            
+            if (!inventory) {
+                return null;
+            }
+            
+            // Update inventory fields if provided
+            if (currentStock !== undefined) {
+                inventory.currentStock = currentStock;
+                // Recalculate available stock
+                inventory.availableStock = currentStock - inventory.reservedStock;
+                
+                // If stock has been updated, trigger a demand forecast update
+                generateDemandForecast(productId).catch(err => 
+                    console.error(`Error generating forecast after stock update for ${productId}:`, err)
+                );
+            }
+            
+            if (threshold !== undefined) {
+                inventory.threshold = threshold;
+            }
+            
+            // Save the updated inventory
+            await inventory.save();
+            return inventory;
+        });
         
-        if (!inventory) {
+        if (!result) {
             return res.status(404).json({
                 message: "Inventory not found for this product",
                 error: true,
@@ -246,28 +311,54 @@ export const updateInventoryController = async (req: Request, res: Response) => 
             });
         }
         
-        // Update inventory fields if provided
-        if (currentStock !== undefined) {
-            inventory.currentStock = currentStock;
-            // Recalculate available stock
-            inventory.availableStock = currentStock - inventory.reservedStock;
-        }
-        
-        if (threshold !== undefined) {
-            inventory.threshold = threshold;
-        }
-        
-        // Save the updated inventory
-        await inventory.save();
-        
         return res.json({
             message: "Inventory updated successfully",
-            data: inventory,
+            data: result,
             error: false,
             success: true
         });
     } catch (error) {
         console.error("Error updating inventory:", error);
+        let errorMessage = "Something went wrong";
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        return res.status(500).json({
+            message: errorMessage,
+            error: true,
+            success: false
+        });
+    }
+};
+
+/**
+ * Controller function to reconcile inventory records
+ * Fixes any discrepancies in inventory data
+ */
+export const reconcileInventoryController = async (req: Request, res: Response) => {
+    try {
+        const { productId } = req.params;
+        
+        if (!productId) {
+            return res.status(400).json({
+                message: "Product ID is required",
+                error: true,
+                success: false
+            });
+        }
+        
+        const result = await reconcileInventory(productId);
+        
+        return res.json({
+            message: result.wasCorrected 
+                ? "Inventory reconciled and corrections made" 
+                : "Inventory reconciled - no corrections needed",
+            data: result,
+            error: false,
+            success: true
+        });
+    } catch (error) {
+        console.error("Error reconciling inventory:", error);
         let errorMessage = "Something went wrong";
         if (error instanceof Error) {
             errorMessage = error.message;
