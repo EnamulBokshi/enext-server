@@ -32,6 +32,7 @@ inventoryAssistRouter.get("/by-category", asyncHandler(admin), asyncHandler(getI
 // Search and filter inventory
 inventoryAssistRouter.get("/search", asyncHandler(admin), asyncHandler(searchInventory));
 
+
 // Smart inventory management endpoints
 inventoryAssistRouter.get("/smart-dashboard", asyncHandler(admin), asyncHandler(getSmartInventoryDashboard));
 inventoryAssistRouter.get("/forecast/:productId", asyncHandler(admin), asyncHandler(getProductForecast));

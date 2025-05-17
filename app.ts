@@ -58,15 +58,8 @@ app.use(performanceMiddleware);
 // Apply inventory alert middleware
 app.use(inventoryAlertMiddleware);
 
-app.get('/(.*)/', (req, res, next) => {
-    res.send('Hello World :grinning:!')
-    res.status(200).json({
-        message: "Welcome to the API",
-        success: true,
-        error: false
-    })
-    res.end()
-    next()
+app.get('/', (req, res) => {
+    res.send('Welcome to the Smart Inventory Management System API');
 })
 
 // User routes

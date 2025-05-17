@@ -39,12 +39,12 @@ export const askQuestion = async (question: string) => {
             `;
 
 
-        const result = googleGenAI.models.generateContent({
+        const result = await googleGenAI.models.generateContent({
             model: 'gemini-2.0-flash',
             contents: instructionPrompt,
         })
-
-        return result;
+       
+        return result.candidates?.[0]?.content?.parts?.[0] ?? null;
     } catch (error) {
         console.error("Error asking question:", error);
         throw new Error("Failed to get a response from Gemini.");
