@@ -30,11 +30,18 @@ connectDB().catch(err => {
 
 const app = express();
 
+// Enhanced CORS configuration for better Postman compatibility
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization','X-API-KEY'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-KEY', 'Origin', 'Accept'],
+    credentials: true,
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
+
+// Preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 app.use(cookieParser())
 app.use(morgan('dev'))
